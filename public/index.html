@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liahona Manager</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="orb" aria-hidden="true"></span>Liahona Manager</div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="people" class="active">People</button>
+      <button role="tab" data-tab="teams">Teams</button>
+      <button role="tab" data-tab="cards">Cards</button>
+      <button role="tab" data-tab="settings">Settings</button>
+    </nav>
+    <div class="summary" id="summary"></div>
+  </header>
+
+  <main>
+    <section id="tab-people" class="tab active"></section>
+    <section id="tab-teams" class="tab"></section>
+    <section id="tab-cards" class="tab"></section>
+    <section id="tab-settings" class="tab"></section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

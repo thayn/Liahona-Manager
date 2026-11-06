@@ -1,0 +1,16 @@
+{
+  "name": "liahona-manager",
+  "version": "0.1.0",
+  "description": "Manager app for the Liahona camp devices: roster, team builder, NFC card binding",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
