@@ -216,3 +216,5 @@ tr.cur-row td { background: var(--gold-soft); }
 .credit { text-align: center; color: var(--quiet); font-size: 13px; padding: 24px 0 32px; border-top: 1px solid var(--line); margin-top: 24px; }
 td input[type=checkbox] { width: 18px; height: 18px; min-height: 0; }
 .hint-wait { max-width: 260px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; }
+@media (max-width: 900px) { .grid3 { grid-template-columns: 1fr 1fr; } }

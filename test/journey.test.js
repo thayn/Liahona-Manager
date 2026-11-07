@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { validateJourney, compileJourney, parseDuration, newJourney, newTask, TASK_TYPES } from '../public/shared/journey.js';
+import { validateJourney, compileJourney, parseDuration, parseOffset, newJourney, newTask, TASK_TYPES } from '../public/shared/journey.js';
 import { parseYaml, JourneyStore } from '../lib/journeys.js';
 import { Store } from '../lib/store.js';
 
@@ -104,4 +104,26 @@ test('hint wait: per Task, falling back to the Journey default', () => {
   delete j.stages[1].tasks[0].hints;
   j.stages[1].tasks[0].hint_after = 30;
   assert.ok(validateJourney(j).some(i => i.level === 'warning' && i.path === 'stages.1.tasks.0.hint_after'));
+});
+
+test('audio playback: snippets, audio hints, replays', () => {
+  assert.equal(parseOffset('0:20'), 20);
+  assert.equal(parseOffset(0), 0);
+  assert.equal(parseOffset('1:05:00'), 3900);
+  assert.equal(parseDuration('1:30'), 90);
+  const j = parseYaml(trialText);
+  assert.deepEqual(errors(validateJourney(j)), []);
+  const c = compileJourney(j);
+  const clue = c.stages[2].tasks[0];
+  assert.deepEqual([clue.start, clue.play_for, clue.audio_hints, clue.hint_adds, clue.hint_audio, clue.replays], [0, 8, 3, 5, 'continue', 1]);
+  const hymn = c.stages[7].tasks[1];
+  assert.equal(hymn.hint_audio, 'restart');
+  assert.equal(hymn.hint_after, 120, 'audio hints get a hint wait even with no text hints');
+  delete j.stages[7].tasks[1].play_for;
+  assert.equal(compileJourney(j).stages[7].tasks[1].play_for, 10, 'default first play');
+  j.stages[2].tasks[0].start = 'intro';
+  j.stages[2].tasks[0].hint_audio = 'shuffle';
+  const bad = errors(validateJourney(j)).map(e => e.path);
+  assert.ok(bad.includes('stages.2.tasks.0.start') && bad.includes('stages.2.tasks.0.hint_audio'));
+  assert.equal(compileJourney(parseYaml(trialText)).stages[1].tasks[0].replays, undefined, 'question without a clip has no replays');
 });

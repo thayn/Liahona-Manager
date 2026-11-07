@@ -21,6 +21,7 @@ export const TRAVEL_MODES = {
 };
 
 export const DARKEN_RESTORE = { unity: 'Unity (everyone taps)', leader: 'Leader card', wait: 'Wait it out' };
+export const HINT_AUDIO = { continue: 'Continue from where it paused', restart: 'Start over and play longer' };
 export const CIPHERS = { 'reformed-egyptian': 'Reformed Egyptian symbols', pigpen: 'Pigpen', caesar: 'Shift (Caesar)' };
 
 // Field kinds the designer knows how to draw:
@@ -39,7 +40,8 @@ export const TASK_TYPES = {
       { key: 'choices', kind: 'choices', label: 'Answers', required: true, min: 2, max: 6 },
       { key: 'answer', kind: 'answer', label: 'Correct answer', required: true, of: 'choices' },
       { key: 'image', kind: 'media', label: 'Image', media: 'image' },
-      { key: 'clip', kind: 'media', label: 'Clip', media: 'clip' }
+      { key: 'clip', kind: 'media', label: 'Clip', media: 'clip' },
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
     ]
   },
   true_false: {
@@ -68,26 +70,40 @@ export const TASK_TYPES = {
   },
   audio_clue: {
     label: 'Audio clue', group: 'Audio and video',
-    help: 'Plays a hymn or sound. The answer is where they go next, so follow it with a check-in.',
+    help: 'Plays a short snippet of a song, then pauses. Each hint plays more of it. The answer is where they go next, so follow it with a check-in.',
     fields: [
       { key: 'audio', kind: 'media', label: 'Audio', media: 'audio', required: true },
-      { key: 'prompt', kind: 'text', label: 'Prompt', placeholder: 'Where does this song send you?' }
+      { key: 'prompt', kind: 'text', label: 'Prompt', placeholder: 'Where does this song send you?' },
+      { key: 'start', kind: 'offset', label: 'Start at', section: 'Playback', placeholder: '0:00', help: 'Where in the file to begin, e.g. 0:20 to skip an intro.' },
+      { key: 'play_for', kind: 'duration', label: 'First play', section: 'Playback', placeholder: '10s', help: 'How much plays before it pauses.' },
+      { key: 'audio_hints', kind: 'number', label: 'Audio hints', section: 'Playback', min: 0, max: 5, placeholder: '3', help: 'How many times a hint plays more of the song.' },
+      { key: 'hint_adds', kind: 'duration', label: 'Each hint plays', section: 'Playback', placeholder: '5s' },
+      { key: 'hint_audio', kind: 'select', label: 'On a hint', section: 'Playback', options: HINT_AUDIO },
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
     ]
   },
   name_that_hymn: {
     label: 'Name that hymn', group: 'Audio and video',
+    help: 'Plays a short snippet of an instrumental, then pauses. Each hint plays more of it.',
     fields: [
       { key: 'audio', kind: 'media', label: 'Audio', media: 'audio', required: true },
       { key: 'prompt', kind: 'text', label: 'Prompt', placeholder: 'Which hymn is this?' },
       { key: 'choices', kind: 'choices', label: 'Hymns', required: true, min: 2, max: 6 },
-      { key: 'answer', kind: 'answer', label: 'Correct hymn', required: true, of: 'choices' }
+      { key: 'answer', kind: 'answer', label: 'Correct hymn', required: true, of: 'choices' },
+      { key: 'start', kind: 'offset', label: 'Start at', section: 'Playback', placeholder: '0:00', help: 'Where in the file to begin, e.g. 0:20 to skip an intro.' },
+      { key: 'play_for', kind: 'duration', label: 'First play', section: 'Playback', placeholder: '10s', help: 'How much plays before it pauses.' },
+      { key: 'audio_hints', kind: 'number', label: 'Audio hints', section: 'Playback', min: 0, max: 5, placeholder: '3', help: 'How many times a hint plays more of the song.' },
+      { key: 'hint_adds', kind: 'duration', label: 'Each hint plays', section: 'Playback', placeholder: '5s' },
+      { key: 'hint_audio', kind: 'select', label: 'On a hint', section: 'Playback', options: HINT_AUDIO },
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
     ]
   },
   clip: {
     label: 'Watch a clip', group: 'Audio and video',
     fields: [
       { key: 'clip', kind: 'media', label: 'Clip', media: 'clip', required: true },
-      { key: 'prompt', kind: 'text', label: 'Caption' }
+      { key: 'prompt', kind: 'text', label: 'Caption' },
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
     ]
   },
   sing: {
@@ -179,11 +195,28 @@ export function parseDuration(v) {
   if (typeof v !== 'string') return NaN;
   const s = v.trim().toLowerCase();
   if (/^\d+$/.test(s)) return Number(s) || NaN;
+  const clock = s.match(/^(?:(\d+):)?(\d+):([0-5]\d)$/);
+  if (clock) return (Number(clock[1] || 0) * 3600 + Number(clock[2]) * 60 + Number(clock[3])) || NaN;
   const m = s.match(/^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?$/);
   if (!m || (!m[1] && !m[2] && !m[3])) return NaN;
   const secs = (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
   return secs || NaN;
 }
+
+/** A position in a file: 0, 20, "20s", "0:20" or "1:05:00" -> seconds (0 allowed); NaN if not. */
+export function parseOffset(v) {
+  if (typeof v === 'number') return v >= 0 ? v : NaN;
+  if (typeof v !== 'string') return NaN;
+  const s = v.trim();
+  const clock = s.match(/^(?:(\d+):)?(\d+):([0-5]\d)$/);
+  if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2]) * 60 + Number(clock[3]);
+  if (/^0+s?$/.test(s)) return 0;
+  return parseDuration(s);
+}
+
+/** Playback defaults for audio Tasks (seconds). */
+export const AUDIO_DEFAULTS = { start: 0, play_for: 10, audio_hints: 3, hint_adds: 5, hint_audio: 'continue', replays: 1 };
+export const VIDEO_DEFAULTS = { replays: 1 };
 
 export function formatDuration(secs) {
   if (!Number.isFinite(secs)) return '';
@@ -222,6 +255,9 @@ export function newTask(type) {
   if (type === 'true_false') t.answer = 'true';
   return t;
 }
+
+const AUDIO_TASKS = new Set(['audio_clue', 'name_that_hymn']);
+export function hasAudioHints(t) { return AUDIO_TASKS.has(t?.type) && (t.audio_hints ?? AUDIO_DEFAULTS.audio_hints) > 0; }
 
 /** Every place key a Journey mentions, with where. */
 export function referencedPlaces(j) {
@@ -348,6 +384,9 @@ export function validateJourney(j, ctx = {}) {
         case 'duration':
           if (!Number.isFinite(parseDuration(v))) err(fp, `${name}: "${v}" isn't a duration (try 8m or 45s)`);
           break;
+        case 'offset':
+          if (!Number.isFinite(parseOffset(v))) err(fp, `${name}: "${v}" isn't a position in the file (try 0:20 or 20s)`);
+          break;
         case 'select':
           if (!(String(v) in f.options)) err(fp, `${name}: "${v}" isn't one of ${Object.keys(f.options).join(', ')}`);
           break;
@@ -378,6 +417,8 @@ export function validateJourney(j, ctx = {}) {
       const both = t.decoys.filter(k => t.tags.includes(k));
       if (both.length) err(`${path}.decoys`, `${name}: "${both[0]}" can't be both a fragment and a decoy`);
     }
+    if (t.type === 'question' && t.replays !== undefined && !t.clip) warn(`${path}.replays`, `${name}: replays only apply when the question has a clip`);
+    if (t.audio_hints === 0 && (t.hint_adds !== undefined || t.hint_audio !== undefined)) warn(`${path}.audio_hints`, `${name}: audio hints are off, so "each hint plays" isn't used`);
     if (t.type === 'scripted_darken' && t.restore === 'wait' && t.seconds === undefined) err(`${path}.seconds`, `${name}: "Wait it out" needs a number of seconds`);
     if (t.hints !== undefined) {
       if (!Array.isArray(t.hints) || t.hints.length > 3) err(`${path}.hints`, `${name}: up to 3 hints`);
@@ -385,7 +426,7 @@ export function validateJourney(j, ctx = {}) {
     }
     if (t.hint_after !== undefined) {
       if (!Number.isFinite(parseDuration(t.hint_after))) err(`${path}.hint_after`, `${name}: hint wait "${t.hint_after}" isn't a duration (try 90 or 2m)`);
-      else if (!t.hints?.length) warn(`${path}.hint_after`, `${name}: has a hint wait but no hints`);
+      else if (!t.hints?.length && !hasAudioHints(t)) warn(`${path}.hint_after`, `${name}: has a hint wait but no hints`);
     }
     checkBrief(t.brief, `${path}.brief`, name);
     checkTravel(t.travel, `${path}.travel`, name);
@@ -453,7 +494,16 @@ export function compileJourney(j, ctx = {}) {
         ...t,
         ...(t.limit !== undefined ? { limit: secs(t.limit) } : {}),
         ...(t.travel ? { travel: travel(t.travel) } : {}),
-        ...(t.hints?.length ? { hint_after: t.hint_after !== undefined ? secs(t.hint_after) : hintDefault } : {}),
+        ...(t.hints?.length || hasAudioHints(t) ? { hint_after: t.hint_after !== undefined ? secs(t.hint_after) : hintDefault } : {}),
+        ...(AUDIO_TASKS.has(t.type) ? {
+          start: parseOffset(t.start ?? AUDIO_DEFAULTS.start),
+          play_for: secs(t.play_for ?? AUDIO_DEFAULTS.play_for),
+          audio_hints: t.audio_hints ?? AUDIO_DEFAULTS.audio_hints,
+          hint_adds: secs(t.hint_adds ?? AUDIO_DEFAULTS.hint_adds),
+          hint_audio: t.hint_audio ?? AUDIO_DEFAULTS.hint_audio,
+          replays: t.replays ?? AUDIO_DEFAULTS.replays
+        } : {}),
+        ...(t.type === 'clip' || (t.type === 'question' && t.clip) ? { replays: t.replays ?? VIDEO_DEFAULTS.replays } : {}),
         ...(t.type === 'true_false' ? { answer: String(t.answer) === 'true' } : {})
       }))
     })),

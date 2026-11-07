@@ -44,8 +44,14 @@ stages:
     gather: roll_call
     tasks:
       - type: audio_clue
-        audio: hymn-clue.mp3
+        audio: hymn-clue.mp3        # instrumental only
         prompt: Where does this song send you?
+        start: 0:00
+        play_for: 8s                # first snippet, then it pauses
+        audio_hints: 3              # each hint plays more of the song
+        hint_adds: 5s
+        hint_audio: continue        # or restart
+        replays: 1                  # each replay counts as a hint
         hints: [Think about who sings it on Sunday.]
       - type: checkin
         travel: { to: classroom, mode: directions }
@@ -109,7 +115,12 @@ stages:
         brief:
           ref: 1 Nephi 18:12-13
       - type: name_that_hymn
-        audio: hymn-intro.mp3
+        audio: hymn-intro.mp3       # instrumental only
+        play_for: 6s
+        audio_hints: 3
+        hint_adds: 4s
+        hint_audio: restart
+        replays: 1
         choices: ["Come, Come, Ye Saints", "Master, the Tempest Is Raging", "Lead, Kindly Light"]
         answer: 1
       - type: checkin

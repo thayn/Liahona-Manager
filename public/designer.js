@@ -3,7 +3,7 @@
 import yaml from '/vendor/js-yaml.mjs';
 import {
   TASK_TYPES, TASK_GROUPS, GATHER_MODES, TRAVEL_MODES, validateJourney, newJourney, newStage, newTask, slugify,
-  parseDuration, formatDuration, DEFAULT_HINT_AFTER
+  parseDuration, parseOffset, formatDuration, DEFAULT_HINT_AFTER, AUDIO_DEFAULTS
 } from '/shared/journey.js';
 
 let H;  // helpers from app.js: { api, act, toast, esc, state, refresh, rerender }
@@ -264,14 +264,42 @@ function taskCard(t, p, ti, n) {
   if (!def) return `<div class="task">${head}<p class="bad-text">Unknown Task type "${esc(t?.type)}". Fix it in the YAML view.</p></div>`;
   return `<div class="task" data-task="${esc(p)}">${head}
     ${def.help ? `<p class="hint">${esc(def.help)}</p>` : ''}
-    <div class="grid2">${def.fields.map(f => taskField(t, f, p)).join('')}</div>
+    <div class="grid2">${def.fields.filter(f => !f.section).map(f => taskField(t, f, p)).join('')}</div>
+    ${sectionsHtml(t, def, p)}
     ${listField('Hints', t.hints || [], `${p}.hints`, { max: 3, placeholder: 'A nudge, not the answer' })}
-    ${t.hints?.length || t.hint_after !== undefined ? `<div class="hint-wait">${field('Offer hints after', input(`${p}.hint_after`, t.hint_after,
+    ${t.hints?.length || t.hint_after !== undefined || ['audio_clue', 'name_that_hymn'].includes(t.type) ? `<div class="hint-wait">${field('Offer hints after', input(`${p}.hint_after`, t.hint_after,
       `data-kind="duration" placeholder="${esc(defaultHintLabel())}" size="8"`), `${p}.hint_after`, 'Blank uses the Journey default.')}</div>` : ''}
     <div class="row">${t.brief ? '' : briefBlock(null, `${p}.brief`, 'Brief before this Task')}${t.travel ? '' : travelBlock(null, `${p}.travel`, 'Travel before this Task')}</div>
     ${t.brief ? briefBlock(t.brief, `${p}.brief`, 'Brief before this Task') : ''}
     ${t.travel ? travelBlock(t.travel, `${p}.travel`, 'Travel before this Task') : ''}
   </div>`;
+}
+
+function sectionsHtml(t, def, p) {
+  if (t.type === 'question' && !t.clip) return '';
+  const names = [...new Set(def.fields.filter(f => f.section).map(f => f.section))];
+  return names.map(n => {
+    let fields = def.fields.filter(f => f.section === n);
+    if (t.audio_hints === 0) fields = fields.filter(f => !['hint_adds', 'hint_audio'].includes(f.key));
+    return `<fieldset class="sub"><legend>${esc(n)}</legend><div class="grid3">${fields.map(f => taskField(t, f, p)).join('')}</div>
+      ${n === 'Playback' && fields.some(f => f.key === 'play_for') ? `<p class="hint" data-play-summary="${esc(p)}">${esc(playSummary(t))}</p>` : ''}</fieldset>`;
+  }).join('');
+}
+
+function playSummary(t) {
+  const d = AUDIO_DEFAULTS;
+  const start = parseOffset(t.start ?? d.start), first = parseDuration(t.play_for ?? d.play_for);
+  const n = t.audio_hints ?? d.audio_hints, more = parseDuration(t.hint_adds ?? d.hint_adds);
+  if (![start, first, more].every(Number.isFinite)) return '';
+  const clock = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
+  let line = `Plays ${clock(start)}–${clock(start + first)}`;
+  if (n > 0) {
+    const restart = (t.hint_audio ?? d.hint_audio) === 'restart';
+    line += restart ? `; each hint starts over and plays ${more}s longer (up to ${clock(start)}–${clock(start + first + n * more)})`
+      : `; each hint plays the next ${more}s (up to ${clock(start + first + n * more)})`;
+  }
+  const r = t.replays ?? d.replays;
+  return `${line}. ${r ? `${r} replay${r > 1 ? 's' : ''} allowed.` : 'No replays.'}`;
 }
 
 function taskField(t, f, p) {
@@ -283,10 +311,11 @@ function taskField(t, f, p) {
     case 'text': return field(label, input(path, v, ph), path);
     case 'time': return field(label, input(path, v, ph), path);
     case 'longtext': return `<div class="span2">${field(label, `<textarea data-path="${esc(path)}" rows="3" ${ph}>${esc(v || '')}</textarea>`, path)}</div>`;
-    case 'number': return field(label, input(path, v, `type="number" data-kind="number" min="${f.min ?? ''}" max="${f.max ?? ''}" ${ph}`), path);
-    case 'duration': return field(label, input(path, v, `data-kind="duration" ${ph}`), path);
+    case 'number': return field(label, input(path, v, `type="number" data-kind="number" min="${f.min ?? ''}" max="${f.max ?? ''}" ${ph}`), path, f.help);
+    case 'duration': return field(label, input(path, v, `data-kind="duration" ${ph}`), path, f.help);
+    case 'offset': return field(label, input(path, v, `data-kind="offset" ${ph}`), path, f.help);
     case 'media': return field(label, mediaInput(path, v), path);
-    case 'select': return field(label, `<select data-path="${esc(path)}">${opt(f.options, v, f.required ? null : '—')}</select>`, path);
+    case 'select': return field(label, `<select data-path="${esc(path)}">${opt(f.options, v, f.required ? null : f.section ? 'Default (continue)' : '—')}</select>`, path, f.help);
     case 'choices': return `<div class="span2">${listField(label, v || [], path, { max: f.max, min: f.min, numbered: true })}</div>`;
     case 'items': return `<div class="span2">${listField(label, v || [], path, { max: f.max, min: f.min, numbered: true, reorder: true })}</div>`;
     case 'answer': {
@@ -367,7 +396,7 @@ function valueFrom(el) {
   if (kind === 'index') return Number(el.value);
   const v = el.value;
   if (kind === 'number') return v === '' ? undefined : Number(v);
-  if (kind === 'duration') return v.trim() === '' ? undefined : (/^\d+$/.test(v.trim()) ? Number(v.trim()) : v.trim());
+  if (kind === 'duration' || kind === 'offset') return v.trim() === '' ? undefined : (/^\d+$/.test(v.trim()) ? Number(v.trim()) : v.trim());
   return v === '' && !/\.\d+$/.test(el.dataset.path) ? undefined : v;
 }
 
@@ -404,6 +433,9 @@ export function designerInput(el) {
   } else {
     setAt(j, path, valueFrom(el));
   }
+  const task = path.match(/^(stages\.\d+\.tasks\.\d+)\./)?.[1];
+  const sum = task && document.querySelector(`[data-play-summary="${CSS.escape(task)}"]`);
+  if (sum) sum.textContent = playSummary(getAt(j, task));
   markDirty();
   return true;
 }
@@ -412,7 +444,7 @@ export function designerChange(el) {
   if (!D.open || !el.dataset.path) return false;
   designerInput(el);
   // Selects and list text change what other parts show, so redraw.
-  if (el.tagName === 'SELECT' || /\.(choices|items)\.\d+$/.test(el.dataset.path)) redrawKeepingFocus();
+  if (el.tagName === 'SELECT' || /\.(choices|items)\.\d+$/.test(el.dataset.path) || /\.(audio_hints|clip)$/.test(el.dataset.path)) redrawKeepingFocus();
   return true;
 }
 
