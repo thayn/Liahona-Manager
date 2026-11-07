@@ -91,3 +91,17 @@ test('journey files: import keeps comments, save, rename, duplicate, delete', ()
   const p = store.addPerson({ name: 'Ann' });
   assert.throws(() => store.bindCard(p.id, '04A1B2C3D4E5F6'), /place/);
 });
+
+test('hint wait: per Task, falling back to the Journey default', () => {
+  const j = parseYaml(trialText);
+  const c = compileJourney(j);
+  assert.equal(c.hint_after, 120);
+  assert.equal(c.stages[1].tasks[0].hint_after, 45, 'Task override');
+  assert.equal(c.stages[2].tasks[0].hint_after, 120, 'Journey default');
+  assert.equal(c.stages[3].tasks[0].hint_after, undefined, 'no hints, no wait');
+  j.stages[1].tasks[0].hint_after = 'later';
+  assert.ok(validateJourney(j).some(i => i.level === 'error' && i.path === 'stages.1.tasks.0.hint_after'));
+  delete j.stages[1].tasks[0].hints;
+  j.stages[1].tasks[0].hint_after = 30;
+  assert.ok(validateJourney(j).some(i => i.level === 'warning' && i.path === 'stages.1.tasks.0.hint_after'));
+});

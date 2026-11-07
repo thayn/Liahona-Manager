@@ -7,6 +7,7 @@ description: Weeknight test run for leaders, in and around the church building, 
 penalties:
   darken_s: [30, 60, 120]
   unity_restore: true
+hint_after: 2m      # default wait before a Task offers a hint; a Task can set its own
 media: leader-trial
 
 stages:
@@ -33,6 +34,7 @@ stages:
         choices: [His tent, His gold and precious things, His family]
         answer: 1
         hints: [Read 1 Nephi 2:4.]
+        hint_after: 45s
       - type: checkin
         travel: { to: lot-corner, mode: pointers }
         tags: [lot-corner]

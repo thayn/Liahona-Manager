@@ -2,7 +2,8 @@
 
 import yaml from '/vendor/js-yaml.mjs';
 import {
-  TASK_TYPES, TASK_GROUPS, GATHER_MODES, TRAVEL_MODES, validateJourney, newJourney, newStage, newTask, slugify
+  TASK_TYPES, TASK_GROUPS, GATHER_MODES, TRAVEL_MODES, validateJourney, newJourney, newStage, newTask, slugify,
+  parseDuration, formatDuration, DEFAULT_HINT_AFTER
 } from '/shared/journey.js';
 
 let H;  // helpers from app.js: { api, act, toast, esc, state, refresh, rerender }
@@ -180,6 +181,9 @@ function settingsPane(j) {
     <h3>Darkened</h3>
     <div class="row">${[0, 1, 2].map(i => field(['1st mistake', '2nd', '3rd and later'][i], input(`penalties.darken_s.${i}`, d[i], 'data-kind="duration" placeholder="30" size="6"'), `penalties.darken_s.${i}`)).join('')}</div>
     <label class="check"><input type="checkbox" data-path="penalties.unity_restore" data-kind="bool" ${j.penalties?.unity_restore !== false ? 'checked' : ''}> Everyone tapping their medallion ends Darkened early (unity)</label>
+    <h3>Hints</h3>
+    ${field('Offer hints after', input('hint_after', j.hint_after, `data-kind="duration" placeholder="${formatDuration(DEFAULT_HINT_AFTER)}" size="8"`), 'hint_after',
+      'How long a team works on a Task before the hint button fades in. Each Task can change this. After a hint, the next one fades in after the same wait.')}
     <p class="hint">File: <span class="mono">${esc(D.open.file || '')}</span></p>`;
 }
 
@@ -262,6 +266,8 @@ function taskCard(t, p, ti, n) {
     ${def.help ? `<p class="hint">${esc(def.help)}</p>` : ''}
     <div class="grid2">${def.fields.map(f => taskField(t, f, p)).join('')}</div>
     ${listField('Hints', t.hints || [], `${p}.hints`, { max: 3, placeholder: 'A nudge, not the answer' })}
+    ${t.hints?.length || t.hint_after !== undefined ? `<div class="hint-wait">${field('Offer hints after', input(`${p}.hint_after`, t.hint_after,
+      `data-kind="duration" placeholder="${esc(defaultHintLabel())}" size="8"`), `${p}.hint_after`, 'Blank uses the Journey default.')}</div>` : ''}
     <div class="row">${t.brief ? '' : briefBlock(null, `${p}.brief`, 'Brief before this Task')}${t.travel ? '' : travelBlock(null, `${p}.travel`, 'Travel before this Task')}</div>
     ${t.brief ? briefBlock(t.brief, `${p}.brief`, 'Brief before this Task') : ''}
     ${t.travel ? travelBlock(t.travel, `${p}.travel`, 'Travel before this Task') : ''}
@@ -292,6 +298,12 @@ function taskField(t, f, p) {
     case 'places': return `<div class="span2">${placesField(label, v || [], path)}</div>`;
     default: return '';
   }
+}
+
+function defaultHintLabel() {
+  const v = D.open?.data?.hint_after;
+  const secs = v !== undefined ? parseDuration(v) : DEFAULT_HINT_AFTER;
+  return Number.isFinite(secs) ? `${formatDuration(secs)} (default)` : 'default';
 }
 
 function listField(label, list, path, { max = 6, numbered = false, reorder = false, placeholder = '' } = {}) {

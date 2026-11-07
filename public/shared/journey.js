@@ -191,11 +191,15 @@ export function formatDuration(secs) {
   return m && s ? `${m}m${s}s` : m ? `${m}m` : `${s}s`;
 }
 
+/** Default wait before a Task offers its first hint, when the Journey doesn't set one. */
+export const DEFAULT_HINT_AFTER = 120;
+
 export function newJourney(title = 'New Journey') {
   return {
     id: slugify(title) || 'new-journey',
     title,
     penalties: { darken_s: [30, 60, 120], unity_restore: true },
+    hint_after: '2m',
     stages: [newStage(1)]
   };
 }
@@ -274,6 +278,8 @@ export function validateJourney(j, ctx = {}) {
     }
     if (pen && 'unity_restore' in pen && typeof pen.unity_restore !== 'boolean') err('penalties.unity_restore', 'Unity restore must be true or false');
   }
+
+  if (j.hint_after !== undefined && !Number.isFinite(parseDuration(j.hint_after))) err('hint_after', `Hint wait "${j.hint_after}" isn't a duration (try 2m or 90)`);
 
   if (!Array.isArray(j.stages) || j.stages.length === 0) { err('stages', 'A Journey needs at least one Stage'); return issues; }
 
@@ -377,6 +383,10 @@ export function validateJourney(j, ctx = {}) {
       if (!Array.isArray(t.hints) || t.hints.length > 3) err(`${path}.hints`, `${name}: up to 3 hints`);
       else if (t.hints.some(h => !str(h))) err(`${path}.hints`, `${name}: a hint is blank`);
     }
+    if (t.hint_after !== undefined) {
+      if (!Number.isFinite(parseDuration(t.hint_after))) err(`${path}.hint_after`, `${name}: hint wait "${t.hint_after}" isn't a duration (try 90 or 2m)`);
+      else if (!t.hints?.length) warn(`${path}.hint_after`, `${name}: has a hint wait but no hints`);
+    }
     checkBrief(t.brief, `${path}.brief`, name);
     checkTravel(t.travel, `${path}.travel`, name);
   }
@@ -421,6 +431,7 @@ export function compileJourney(j, ctx = {}) {
     const p = ctx.places?.[k];
     places[k] = { name: p?.name || k, tagOnly: !!p?.tagOnly, tags: p?.tags || [], lat: p?.lat ?? null, lon: p?.lon ?? null, radius_m: p?.radius_m ?? 20 };
   }
+  const hintDefault = j.hint_after !== undefined ? secs(j.hint_after) : DEFAULT_HINT_AFTER;
   return {
     format: 1,
     id: j.id,
@@ -431,6 +442,7 @@ export function compileJourney(j, ctx = {}) {
       unity_restore: j.penalties?.unity_restore ?? true
     },
     media: j.media || null,
+    hint_after: hintDefault,
     places,
     stages: j.stages.map(st => ({
       ...st,
@@ -441,6 +453,7 @@ export function compileJourney(j, ctx = {}) {
         ...t,
         ...(t.limit !== undefined ? { limit: secs(t.limit) } : {}),
         ...(t.travel ? { travel: travel(t.travel) } : {}),
+        ...(t.hints?.length ? { hint_after: t.hint_after !== undefined ? secs(t.hint_after) : hintDefault } : {}),
         ...(t.type === 'true_false' ? { answer: String(t.answer) === 'true' } : {})
       }))
     })),
