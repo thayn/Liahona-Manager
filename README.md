@@ -1,6 +1,6 @@
-# Liahona Manager (v0.1)
+# Liahona Manager (v0.2)
 
-The laptop app for the Liahona camp devices. This version covers people, teams and NFC cards. Journeys, the route builder and ball sync come next.
+The laptop app for the Liahona camp devices. It covers people, teams, NFC medallions, Journeys and Places. The route builder (maps and GPS), the ball preview and ball sync come next.
 
 There are no packages to install. It runs on Node 18 or newer, and all data lives in one JSON file (see below for where).
 
@@ -36,6 +36,19 @@ Data is saved in **Documents\Liahona Data\liahona.json**, separate from the code
 - Tap a name in the list to bind or replace that person's card next.
 - With everyone done, scanning a card shows whose it is.
 
+**Journeys**
+- Each Journey is a YAML file in `Liahona Data\journeys`. Media for it goes in `Liahona Data\media\<media folder>`.
+- **Load the Leader Trial** gives you a full example to start from, and adds its places.
+- The editor shows Journey settings plus a list of Stages. Each Stage has its gathering, an optional brief and travel, and its Tasks. The form fields change with the Task type (17 types: questions, find the verse, put in order, audio and hymn clues, check-ins, gather the fragments, cipher, be still, sing, hold the course, leader approves, scripted darkening and more).
+- The checker runs as you type. **Errors** (a blank question, an answer that points past the end of the list, a duplicate Stage ID) stop a Journey from going to the balls. **Warnings** are things to finish before the run: places not set up, tags not bound, media files not added yet. Click a problem to jump to it.
+- Save with the button or Ctrl+S. **YAML view** shows the file and lets you edit it directly. Comments are kept when you import a file, but not once you save from the designer.
+- **Ball file** downloads the compiled JSON a ball loads. It's only offered once the Journey has no errors.
+
+**Places**
+- Every spot a Journey sends a team, or a tag it asks them to tap. **Add them** creates every place a Journey uses. Places reached by written directions start as *tag-only* (indoors, no GPS).
+- **Bind tags** works like the medallions: pick a place (or go through the ones with no tag) and tap its tag on the USB reader. A place can have more than one tag, for spares. A tag can't be both a place tag and a member medallion.
+- GPS positions come later, with the route builder.
+
 **Settings / Export**
 - Card ID format: USB readers type IDs in different ways (hex, decimal, sometimes reversed). Use the test box to check a card against what the ball reads, and change the format until they match.
 - **Delete all data:** type DELETE to wipe every person, team and card (for example, after practising with the sample roster). A copy goes to the backups folder first, and the reader settings are kept.
@@ -55,6 +68,10 @@ lib/store.js     data model: people, teams, cards, auto-fill, exports
 lib/uid.js       card ID normalization
 lib/csv.js       CSV import/export
 public/          web UI (plain HTML/CSS/JS)
+public/shared/   journey.js: Task types, checker and compiler (used by both server and browser)
+public/vendor/   js-yaml (MIT), bundled so there's nothing to install
+lib/journeys.js  Journey files on disk
+samples/         leader-trial.yaml
 test/            node:test tests
 data/            liahona.json (created on first run, not in git)
 ```

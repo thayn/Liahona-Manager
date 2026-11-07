@@ -132,3 +132,86 @@ body.selecting .selbar { display: flex; }
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: var(--warn); color: var(--warn); }
+
+/* ---------- Journeys designer ---------- */
+.button-like { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px;
+  padding: 8px 14px; min-height: 40px; cursor: pointer; color: var(--ink); text-decoration: none; }
+.button-like:hover { border-color: var(--gold); color: var(--ink); }
+.button-like.small { padding: 4px 10px; min-height: 32px; font-size: 14px; }
+button.ghost { background: none; border-style: dashed; color: var(--quiet); }
+button.ghost:hover { color: var(--gold-bright); }
+.bad-text { color: var(--warn); }
+.journey-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+.journey-card h3 a { color: var(--gold-bright); text-decoration: none; font-size: 18px; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.badge.error { color: var(--warn); border-color: #6b2c1a; background: #2b1610; }
+.badge.warning { color: #e3b75a; border-color: #5e4a1c; background: #241c0c; }
+.badge.ok { color: var(--good); border-color: #2f4a2c; background: #18261a; }
+
+.editor-bar { position: sticky; top: 62px; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--bg); padding: 8px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.editor-title { font-size: 18px; color: var(--gold-bright); }
+.spacer { flex: 1; }
+.problems { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; margin-bottom: 12px; max-height: 260px; overflow: auto; }
+.problems.show { display: block; }
+.problems ul { margin: 6px 0; padding-left: 4px; list-style: none; }
+.problems li { margin: 4px 0; }
+.problems li a { text-decoration: none; }
+.problems li.error a { color: var(--warn); }
+.problems li.warning a { color: #e3b75a; }
+
+.editor { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .editor { grid-template-columns: 1fr; } }
+.outline { position: sticky; top: 124px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.outline a { display: block; padding: 6px 8px; border-radius: 6px; color: var(--ink); text-decoration: none; }
+.outline a:hover { background: var(--surface-2); }
+.outline .cur > a, .outline a.cur { background: var(--gold-soft); color: var(--gold-bright); }
+.outline ol { margin: 0 0 8px; padding-left: 22px; color: var(--quiet); }
+.outline-head { margin: 10px 8px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--tan); }
+.pane { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.pane h2 { color: var(--gold-bright); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+@media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+.span2 { grid-column: 1 / -1; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; min-width: 0; }
+.field .flabel { font-size: 13px; color: var(--tan); }
+.field input, .field select, .field textarea { width: 100%; }
+.field textarea { font-family: inherit; font-size: 15px; min-height: 64px; }
+.fmsg { font-size: 13px; }
+.has-error input, .has-error select, .has-error textarea { border-color: var(--warn); }
+.has-error .fmsg { color: var(--warn); }
+.has-warning input, .has-warning select, .has-warning textarea { border-color: #8a6d2a; }
+.has-warning .fmsg { color: #e3b75a; }
+.check { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.check input { min-height: 0; width: 18px; height: 18px; }
+
+fieldset.sub { border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; padding: 8px 12px 10px; }
+fieldset.sub legend { color: var(--tan); font-size: 14px; padding: 0 6px; display: flex; gap: 8px; align-items: center; }
+.task { border: 1px solid var(--line); border-left: 3px solid var(--gold-deep); border-radius: 10px; padding: 10px 12px; margin: 10px 0; background: #13110d; }
+.task-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.task-head strong { color: var(--gold-bright); }
+.add-task { margin-top: 10px; }
+.dotflag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 6px; vertical-align: middle; }
+.dotflag.warning { background: #e3b75a; }
+.dotflag.error { background: var(--warn); }
+
+.list-row { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.list-row input { flex: 1; }
+.list-row .num { width: 18px; color: var(--quiet); text-align: right; font-size: 13px; }
+.radios { display: flex; flex-direction: column; gap: 4px; }
+.radio { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.radio input { min-height: 0; width: 18px; height: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; border: 1px solid; margin: 2px; }
+.pchip.ok { color: var(--good); border-color: #2f4a2c; }
+.pchip.notag { color: #e3b75a; border-color: #5e4a1c; }
+.pchip.missing { color: var(--warn); border-color: #6b2c1a; }
+.pchip .x { min-height: 0; padding: 0 6px; border: none; background: none; color: inherit; font-size: 12px; }
+.place-add { min-height: 32px; padding: 4px 8px; }
+textarea.yaml { min-height: 60vh; font-size: 13px; line-height: 1.45; }
+tr.cur-row td { background: var(--gold-soft); }
+
+.credit { text-align: center; color: var(--quiet); font-size: 13px; padding: 24px 0 32px; border-top: 1px solid var(--line); margin-top: 24px; }
+td input[type=checkbox] { width: 18px; height: 18px; min-height: 0; }

@@ -1,0 +1,115 @@
+# Leader Trial: a 60-75 minute run in and around the church building
+# for leaders, on a weeknight, before camp. Uses every kind of Task once.
+# Scripture text and media names are placeholders until the media is chosen.
+id: leader-trial
+title: Leader Trial
+description: Weeknight test run for leaders, in and around the church building, with a timed out-and-back down the road.
+penalties:
+  darken_s: [30, 60, 120]
+  unity_restore: true
+media: leader-trial
+
+stages:
+  - id: tent-door
+    name: The Ball at the Tent Door
+    gather: roll_call
+    brief:
+      ref: 1 Nephi 16:10
+      text: >
+        And it came to pass that as my father arose in the morning,
+        and went forth to the tent door, to his great astonishment
+        he beheld upon the ground a round ball of curious workmanship.
+    tasks:
+      - type: intro
+
+  - id: leave-jerusalem
+    name: Leave Jerusalem
+    gather: roll_call
+    brief:
+      clip: lehi-departs.mjpeg
+    tasks:
+      - type: question
+        prompt: What did Lehi leave behind?
+        choices: [His tent, His gold and precious things, His family]
+        answer: 1
+        hints: [Read 1 Nephi 2:4.]
+      - type: checkin
+        travel: { to: lot-corner, mode: pointers }
+        tags: [lot-corner]
+
+  - id: lemuel
+    name: Valley of Lemuel
+    gather: roll_call
+    tasks:
+      - type: audio_clue
+        audio: hymn-clue.mp3
+        prompt: Where does this song send you?
+        hints: [Think about who sings it on Sunday.]
+      - type: checkin
+        travel: { to: classroom, mode: directions }
+        tags: [classroom]
+
+  - id: plates
+    name: Return for the Plates
+    gather: roll_call
+    brief:
+      ref: 1 Nephi 3:7
+    tasks:
+      - type: gather_fragments
+        tags: [plate-1, plate-2, plate-3]
+        decoys: [labans-guard]
+        limit: 8m
+
+  - id: broken-bow
+    name: The Broken Bow
+    gather: roll_call
+    brief:
+      ref: 1 Nephi 16:18-23
+    tasks:
+      - type: be_still
+        seconds: 30
+      - type: leader_approve
+        prompt: Complete the challenge at the station.
+
+  - id: nahom
+    name: Nahom
+    gather: roll_call
+    tasks:
+      - type: cipher
+        alphabet: reformed-egyptian
+        plaintext: SHED
+        prompt: Decode the word to find your next camp.
+      - type: checkin
+        travel: { to: shed, mode: path, path: sidewalk-loop }
+        tags: [shed]
+
+  - id: bountiful
+    name: Race to Bountiful
+    gather: roll_call
+    limit: 20m
+    tasks:
+      - type: checkin
+        travel: { to: other-church-sidewalk, mode: race, limit: 8m }
+        tags: [other-church-sidewalk]
+      - type: checkin
+        travel: { to: stoplight, mode: race, limit: 6m }
+        tags: [stoplight]
+      - type: checkin
+        travel: { to: lot-corner, mode: race, limit: 8m }
+        tags: [lot-corner]
+
+  - id: storm
+    name: The Storm
+    gather: none
+    tasks:
+      - type: scripted_darken
+        restore: unity
+        brief:
+          ref: 1 Nephi 18:12-13
+      - type: name_that_hymn
+        audio: hymn-intro.mp3
+        choices: ["Come, Come, Ye Saints", "Master, the Tempest Is Raging", "Lead, Kindly Light"]
+        answer: 1
+      - type: checkin
+        travel: { to: chapel, mode: directions }
+        tags: [chapel]

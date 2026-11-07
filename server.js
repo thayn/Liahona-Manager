@@ -9,6 +9,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { Store, HttpError } from './lib/store.js';
+import { JourneyStore } from './lib/journeys.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -47,10 +48,12 @@ function openBrowser(url) {
 }
 
 const store = new Store(DATA_FILE);
+const journeys = new JourneyStore(path.dirname(DATA_FILE), store);
+const SAMPLE_TRIAL = path.join(here, 'samples', 'leader-trial.yaml');
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
-  '.csv': 'text/csv; charset=utf-8', '.json': 'application/json' };
+  '.csv': 'text/csv; charset=utf-8', '.json': 'application/json', '.mjs': 'text/javascript; charset=utf-8' };
 
 function send(res, status, body, type = 'application/json; charset=utf-8', headers = {}) {
   const data = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -73,7 +76,38 @@ async function readJson(req) {
 
 // Routes: [method, pattern, handler(params, body, query)]
 const routes = [
-  ['GET', '/api/state', () => ({ ...store.state(), dataFile: DATA_FILE })],
+  ['GET', '/api/state', () => ({ ...store.state(), dataFile: DATA_FILE, journeysDir: journeys.dir, mediaDir: journeys.mediaRoot, placeUsage: journeys.placeUsage() })],
+
+  ['GET', '/api/journeys', () => journeys.list()],
+  ['POST', '/api/journeys', (_, b) => journeys.create(b.title)],
+  ['POST', '/api/journeys/import', (_, b) => journeys.importYaml(String(b.yaml || ''), { replace: !!b.replace })],
+  ['POST', '/api/journeys/sample', () => {
+    if (journeys.exists('leader-trial')) throw new HttpError(409, 'The Leader Trial is already loaded');
+    return journeys.importYaml(fs.readFileSync(SAMPLE_TRIAL, 'utf8'));
+  }],
+  ['GET', '/api/journeys/:id', (p) => journeys.get(p.id)],
+  ['PUT', '/api/journeys/:id', (p, b) => journeys.save(b.journey, { previousId: p.id })],
+  ['DELETE', '/api/journeys/:id', (p) => { journeys.remove(p.id); return { ok: true }; }],
+  ['POST', '/api/journeys/:id/duplicate', (p) => journeys.duplicate(p.id)],
+  ['GET', '/api/journeys/:id/download.yaml', (p) => ({ __download: `${p.id}.yaml`, type: 'text/yaml; charset=utf-8', body: journeys.read(p.id).yaml })],
+  ['GET', '/api/journeys/:id/ball.json', (p) => ({ __download: `${p.id}.ball.json`, type: 'application/json', body: JSON.stringify(journeys.compiled(p.id), null, 2) })],
+
+  ['POST', '/api/places', (_, b) => store.addPlace(b)],
+  ['POST', '/api/places/from-journeys', () => {
+    const have = new Set(store.db.places.map(p => p.key));
+    const made = [];
+    const indoor = journeys.directionsPlaces();
+    for (const key of Object.keys(journeys.placeUsage())) {
+      if (have.has(key) || !/^[a-z0-9][a-z0-9-]*$/.test(key)) continue;
+      const name = key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      made.push(store.addPlace({ key, name, tagOnly: indoor.has(key) }).key);
+    }
+    return { created: made };
+  }],
+  ['PATCH', '/api/places/:key', (p, b) => store.updatePlace(p.key, b)],
+  ['DELETE', '/api/places/:key', (p) => { store.deletePlace(p.key); return { ok: true }; }],
+  ['POST', '/api/places/:key/tags', (p, b) => store.bindPlaceTag(p.key, b.raw, { force: !!b.force })],
+  ['DELETE', '/api/places/:key/tags/:uid', (p) => store.removePlaceTag(p.key, p.uid)],
 
   ['POST', '/api/people', (_, b) => store.addPerson(b)],
   ['PATCH', '/api/people/:id', (p, b) => store.updatePerson(p.id, b)],
@@ -133,7 +167,7 @@ const server = http.createServer(async (req, res) => {
     if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
     const found = match(req.method, url.pathname);
     if (!found) throw new HttpError(404, 'No such API route');
-    const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJson(req) : {};
+    const body = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) ? await readJson(req) : {};
     const result = await found.handler(found.params, body, url.searchParams);
     if (result?.__download) {
       return send(res, 200, result.body, result.type, { 'Content-Disposition': `attachment; filename="${result.__download}"` });

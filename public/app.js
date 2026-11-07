@@ -1,5 +1,7 @@
 // Liahona Manager front end: plain JS, no build step.
 
+import { initDesigner, renderJourneys, renderPlaces, designerClick, designerInput, designerChange, designerKeydown, designerFile, placesChange, D } from '/designer.js';
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -52,7 +54,8 @@ function render() {
   const leaders = S.people.length - youth;
   const carded = S.people.filter(p => p.cardUid).length;
   $('#summary').textContent = `${youth} youth · ${leaders} leaders · ${S.teams.length} teams · ${carded}/${S.people.length} cards`;
-  ({ people: renderPeople, teams: renderTeams, cards: renderCards, settings: renderSettings })[ui.tab]();
+  ({ people: renderPeople, teams: renderTeams, cards: renderCards, settings: renderSettings,
+     journeys: () => renderJourneys($('#tab-journeys')), places: () => renderPlaces($('#tab-places')) })[ui.tab]();
   document.body.classList.toggle('selecting', ui.tab === 'teams' && ui.selected.size > 0);
 }
 
@@ -217,6 +220,7 @@ async function handleScan(raw) {
       const r = await api('POST', '/api/cards/lookup', { raw });
       ui.lastResult = r.person
         ? { kind: 'good', html: `<strong>${esc(r.uid)}</strong> belongs to <strong>${esc(r.person.name)}</strong>${r.team ? ' on ' + esc(r.team.name) : ''}.` }
+        : r.place ? { kind: 'bad', html: `<strong>${esc(r.uid)}</strong> is the tag for the place <strong>${esc(r.place.name || r.place.key)}</strong>, not a member card.` }
         : { kind: 'bad', html: `<strong>${esc(r.uid)}</strong> isn't bound to anyone.${r.warning ? '<br>' + esc(r.warning) : ''}` };
     } catch (e) { ui.lastResult = { kind: 'bad', html: esc(e.message) }; }
     return render();
@@ -274,7 +278,11 @@ document.addEventListener('click', async (ev) => {
   const t = ev.target.closest('button, a, .chip');
   if (!t) return;
 
-  if (t.dataset.tab) { ui.tab = t.dataset.tab; ui.lastResult = null; return render(); }
+  if (t.dataset.tab) {
+    if (ui.tab === 'journeys' && t.dataset.tab !== 'journeys' && D.open?.dirty && !confirm('You have unsaved Journey changes. Leave them for now? (They stay open until you come back.)')) return;
+    ui.tab = t.dataset.tab; ui.lastResult = null; return render();
+  }
+  if (t.dataset.act && (ui.tab === 'journeys' || ui.tab === 'places')) { await designerClick(t, ev); return; }
 
   // Settings
   if (t.id === 'purge') {
@@ -348,6 +356,8 @@ document.addEventListener('submit', (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target;
+  if (ui.tab === 'journeys') { if (el.type === 'file') { designerFile(el); return; } if (designerChange(el)) return; }
+  if (ui.tab === 'places' && placesChange(el)) return;
   const row = el.closest('tr[data-pid]');
   if (row && el.dataset.field) return act(() => api('PATCH', `/api/people/${row.dataset.pid}`, { [el.dataset.field]: el.value }));
   if (el.dataset.teamName) return act(() => api('PATCH', `/api/teams/${el.dataset.teamName}`, { name: el.value }));
@@ -359,6 +369,7 @@ document.addEventListener('change', (ev) => {
 });
 
 document.addEventListener('input', (ev) => {
+  if (ui.tab === 'journeys' && ev.target.type !== 'file' && designerInput(ev.target)) return;
   if (ev.target.id === 'people-filter') {
     ui.peopleFilter = ev.target.value;
     const pos = ev.target.selectionStart;
@@ -369,6 +380,7 @@ document.addEventListener('input', (ev) => {
 
 // Keyboard-style readers type the ID and press Enter.
 document.addEventListener('keydown', async (ev) => {
+  if ((ui.tab === 'journeys' || ui.tab === 'places') && designerKeydown(ev)) return;
   if (ev.key !== 'Enter') return;
   if (ev.target.id === 'scan') {
     ev.preventDefault();
@@ -403,4 +415,5 @@ document.addEventListener('drop', (ev) => {
   act(() => api('POST', '/api/assign', { personIds: ids, teamId: col.dataset.team || null }), r => `Moved ${r.moved}`).catch(() => {});
 });
 
+initDesigner({ api, act, toast, esc, state: () => S, refresh, rerender: () => render() });
 refresh().catch(e => toast(`Can't reach the server: ${e.message}`, true));
