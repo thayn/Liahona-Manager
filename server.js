@@ -7,12 +7,44 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 import { Store, HttpError } from './lib/store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
-const DATA_FILE = process.env.LIAHONA_DATA || path.join(here, 'data', 'liahona.json');
+const REPO_DATA = path.join(here, 'data', 'liahona.json');
+const DATA_FILE = process.env.LIAHONA_DATA || REPO_DATA;
 const PUBLIC = path.join(here, 'public');
+const OPEN_BROWSER = process.argv.includes('--open');
+
+// First run with a new data location: bring over anything entered in the repo copy.
+if (DATA_FILE !== REPO_DATA && !fs.existsSync(DATA_FILE) && fs.existsSync(REPO_DATA)) {
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+  fs.copyFileSync(REPO_DATA, DATA_FILE);
+  console.log(`Copied existing data from ${REPO_DATA}`);
+}
+
+// One backup per day in a "backups" folder next to the data file; keep the last 30.
+function dailyBackup() {
+  if (!fs.existsSync(DATA_FILE)) return;
+  const dir = path.join(path.dirname(DATA_FILE), 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+  const target = path.join(dir, `liahona-${today}.json`);
+  if (!fs.existsSync(target)) fs.copyFileSync(DATA_FILE, target);
+  const old = fs.readdirSync(dir).filter(f => /^liahona-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort().slice(0, -30);
+  for (const f of old) fs.unlinkSync(path.join(dir, f));
+}
+dailyBackup();
+setInterval(dailyBackup, 60 * 60 * 1000).unref();
+
+function openBrowser(url) {
+  const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+    : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  const child = spawn(cmd[0], cmd[1], { stdio: 'ignore', detached: true });
+  child.on('error', () => console.log(`Open ${url} in a browser.`));
+  child.unref();
+}
 
 const store = new Store(DATA_FILE);
 
@@ -41,7 +73,7 @@ async function readJson(req) {
 
 // Routes: [method, pattern, handler(params, body, query)]
 const routes = [
-  ['GET', '/api/state', () => store.state()],
+  ['GET', '/api/state', () => ({ ...store.state(), dataFile: DATA_FILE })],
 
   ['POST', '/api/people', (_, b) => store.addPerson(b)],
   ['PATCH', '/api/people/:id', (p, b) => store.updatePerson(p.id, b)],
@@ -110,10 +142,21 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    // Already running (e.g. the icon was clicked twice): just show it.
+    console.log(`Liahona manager is already running on port ${PORT}.`);
+    if (OPEN_BROWSER) openBrowser(`http://localhost:${PORT}`);
+    setTimeout(() => process.exit(0), 500);
+  } else throw e;
+});
+
 server.listen(PORT, () => {
   console.log(`Liahona manager running at http://localhost:${PORT}`);
+  if (OPEN_BROWSER) openBrowser(`http://localhost:${PORT}`);
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal) console.log(`  on this network: http://${a.address}:${PORT}`);
   }
   console.log(`  data file: ${DATA_FILE}`);
+  console.log('Keep this window open while you use the app. Close it to stop.');
 });

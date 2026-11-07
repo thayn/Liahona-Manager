@@ -2,11 +2,15 @@
 
 The laptop app for the Liahona camp devices. This version covers people, teams and NFC cards. Journeys, the route builder and ball sync come next.
 
-There are no packages to install. It runs on Node 18 or newer, and all data lives in one file, `data/liahona.json`.
+There are no packages to install. It runs on Node 18 or newer, and all data lives in one JSON file (see below for where).
 
 ## Run it
 
-**Laptop:** `npm start`, then open http://localhost:3000. Phones and iPads on the same Wi-Fi can use the other address it prints (http://192.168.x.x:3000).
+**Windows, from an icon:** double-click **Make Desktop Icon.cmd** once. It puts a *Liahona Manager* icon on the desktop and in the Start menu. Clicking the icon starts the app and opens it in the browser. A small minimized window keeps it running; close that window to stop the app. Clicking the icon again while it's running just opens the browser.
+
+Data is saved in **Documents\Liahona Data\liahona.json**, separate from the code, so `git pull` never touches it. The first launch copies over anything already in the repo's `data` folder. Once a day it saves a copy in `Liahona Data\backups` and keeps the last 30. No internet is needed at any point.
+
+**From a terminal:** `npm start`, then open http://localhost:3000. Phones and iPads on the same Wi-Fi can use the other address it prints (http://192.168.x.x:3000).
 
 **iPad (StackBlitz):** open the project on stackblitz.com. It starts by itself (`.stackblitzrc`) and shows the app in the preview pane. StackBlitz keeps data only while the tab is open, so download a backup (Settings → Full backup) before closing it.
 
@@ -53,3 +57,8 @@ public/          web UI (plain HTML/CSS/JS)
 test/            node:test tests
 data/            liahona.json (created on first run, not in git)
 ```
+
+## Windows notes
+
+- If PowerShell says *running scripts is disabled*, use `npm.cmd start` or `node server.js`. Or run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+- To keep the data somewhere else (a USB stick, say), set the `LIAHONA_DATA` environment variable to the full path of the JSON file.

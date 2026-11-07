@@ -251,6 +251,7 @@ function renderSettings() {
         <p><a href="/api/export/roster.json">Ball roster (JSON)</a><br><span class="hint">Everyone's name, team and card ID, for loading onto the balls.</span></p>
         <p><a href="/api/export/people.csv">People and teams (CSV)</a><br><span class="hint">Opens in Excel or Numbers; good for printing team lists.</span></p>
         <p><a href="/api/export/backup.json">Full backup (JSON)</a><br><span class="hint">Everything. Keep a copy before camp.</span></p>
+        <p class="hint">Saved on this computer at <span class="mono">${esc(S.dataFile)}</span>, with a daily copy in the <span class="mono">backups</span> folder beside it (last 30 days).</p>
       </div>
     </div>`;
 }
