@@ -5,7 +5,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 
 let S = null;                 // server state
 const ui = {
-  tab: 'people',
+  tab: 'teams',
   peopleFilter: '',
   selected: new Set(),        // person ids selected on the team board
   bindTeam: '',               // team id in the bind queue ('' = all, '_none' = unassigned)
@@ -38,6 +38,11 @@ const teamById = (id) => S.teams.find(t => t.id === id);
 const personById = (id) => S.people.find(p => p.id === id);
 const byName = (a, b) => a.name.localeCompare(b.name);
 const byRoleThenName = (a, b) => (a.role === b.role ? 0 : a.role === 'leader' ? -1 : 1) || byName(a, b);
+const ageOptions = (selected) => {
+  let html = `<option value="">Age</option>`;
+  for (let a = S.ages.min; a <= S.ages.max; a++) html += `<option value="${a}"${selected === a ? ' selected' : ''}>${a}</option>`;
+  return html;
+};
 
 // ---------- render ----------
 function render() {
@@ -54,7 +59,7 @@ function render() {
 // ----- People -----
 function renderPeople() {
   const f = ui.peopleFilter.toLowerCase();
-  const rows = S.people.filter(p => !f || `${p.name} ${p.ward} ${p.ageGroup} ${teamById(p.teamId)?.name || ''}`.toLowerCase().includes(f))
+  const rows = S.people.filter(p => !f || `${p.name} ${p.ward} ${p.age ?? ''} ${teamById(p.teamId)?.name || ''}`.toLowerCase().includes(f))
     .sort(byName);
   $('#tab-people').innerHTML = `
     <div class="two">
@@ -64,7 +69,7 @@ function renderPeople() {
           <input name="name" class="grow" placeholder="Full name" required autocomplete="off">
           <select name="role"><option value="youth">Youth</option><option value="leader">Leader</option></select>
           <input name="ward" placeholder="Ward" size="10">
-          <input name="ageGroup" placeholder="Age group" size="10">
+          <select name="age" title="Youth age">${ageOptions(null)}</select>
           <button class="primary">Add</button>
         </form>
         <p class="hint">Press Enter to add and stay in the name box, for quick typing of many names.</p>
@@ -76,7 +81,7 @@ function renderPeople() {
           <button id="csv-import" class="primary">Import</button>
           <a href="/sample-roster.csv" download>Sample file</a>
         </div>
-        <textarea id="csv-text" placeholder="…or paste rows here. Columns: name, role, ward, age group, notes, team (any order, with a header row). A plain list of names works too."></textarea>
+        <textarea id="csv-text" placeholder="…or paste rows here. Columns: name, role, ward, age (13–18), notes, team (any order, with a header row). A plain list of names works too."></textarea>
         <p class="hint">Names already in the list are skipped. A "team" column creates and fills teams.</p>
       </div>
     </div>
@@ -86,13 +91,13 @@ function renderPeople() {
         <input id="people-filter" placeholder="Filter by name, ward, team…" value="${esc(ui.peopleFilter)}">
       </div>
       <table>
-        <thead><tr><th>Name</th><th>Role</th><th>Ward</th><th>Age group</th><th>Team</th><th>Card</th><th>Notes</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Role</th><th>Ward</th><th>Age</th><th>Team</th><th>Card</th><th>Notes</th><th></th></tr></thead>
         <tbody>${rows.map(p => `
           <tr data-pid="${p.id}">
             <td><input data-field="name" value="${esc(p.name)}"></td>
             <td><select data-field="role"><option value="youth"${p.role === 'youth' ? ' selected' : ''}>Youth</option><option value="leader"${p.role === 'leader' ? ' selected' : ''}>Leader</option></select></td>
             <td><input data-field="ward" value="${esc(p.ward)}"></td>
-            <td><input data-field="ageGroup" value="${esc(p.ageGroup)}"></td>
+            <td>${p.role === 'youth' ? `<select data-field="age">${ageOptions(p.age)}</select>` : '<span class="hint">adult</span>'}</td>
             <td>${p.teamId ? `<span class="dot" style="background:${esc(teamById(p.teamId)?.color)}"></span>${esc(teamById(p.teamId)?.name)}` : '<span class="hint">none</span>'}</td>
             <td class="mono">${p.cardUid ? esc(p.cardUid) : '<span class="hint">none</span>'}</td>
             <td><input data-field="notes" value="${esc(p.notes)}"></td>
@@ -107,7 +112,7 @@ function renderPeople() {
 function chip(p) {
   return `<div class="chip${ui.selected.has(p.id) ? ' sel' : ''}" draggable="true" data-chip="${p.id}">
     <span>${esc(p.name)} ${p.role === 'leader' ? '<span class="tag leader">Leader</span>' : ''}</span>
-    <span class="meta">${esc([p.ageGroup, p.ward].filter(Boolean).join(' · '))}${p.cardUid ? '' : ' <span class="nocard" title="No card yet">●</span>'}</span>
+    <span class="meta">${esc([p.age, p.ward].filter(v => v !== null && v !== '').join(' · '))}${p.cardUid ? '' : ' <span class="nocard" title="No card yet">●</span>'}</span>
   </div>`;
 }
 function renderTeams() {
@@ -133,10 +138,10 @@ function renderTeams() {
 
   $('#tab-teams').innerHTML = `
     <div class="panel row">
-      <label>Teams: <input id="team-count" type="number" min="1" max="40" value="${Math.max(S.teams.length, 12)}" style="width:80px"></label>
+      <label>Teams: <input id="team-count" type="number" min="1" max="40" value="${S.teams.length || 10}" style="width:80px"></label>
       <button id="make-teams">Make teams</button>
       <button id="autofill" class="primary">Auto-fill unassigned</button>
-      <span class="hint">Auto-fill balances age groups and wards, then gives each team ${T.leaders} leaders. Tap people to select them, then tap "Move selected here". On a laptop you can also drag.</span>
+      <span class="hint">Auto-fill balances ages and wards, then gives each team ${T.leaders} leaders. Tap people to select them, then tap "Move selected here". On a laptop you can also drag.</span>
     </div>
     <div class="selbar"><strong id="sel-count">${ui.selected.size} selected</strong><button class="small" id="sel-clear">Clear</button><button class="small" data-move="">Move to unassigned</button></div>
     <div class="board">
@@ -253,6 +258,14 @@ function renderSettings() {
         <p><a href="/api/export/backup.json">Full backup (JSON)</a><br><span class="hint">Everything. Keep a copy before camp.</span></p>
         <p class="hint">Saved on this computer at <span class="mono">${esc(S.dataFile)}</span>, with a daily copy in the <span class="mono">backups</span> folder beside it (last 30 days).</p>
       </div>
+    </div>
+    <div class="panel danger-zone">
+      <h3>Delete all data</h3>
+      <p class="hint">Removes every person, team and card so you can start over (for example, after practising with the sample roster). A copy is saved in the backups folder first. Card reader settings are kept.</p>
+      <div class="row" style="margin-top:8px">
+        <input id="purge-confirm" placeholder="Type DELETE" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button id="purge" class="danger-solid">Delete all data</button>
+      </div>
     </div>`;
 }
 
@@ -262,6 +275,14 @@ document.addEventListener('click', async (ev) => {
   if (!t) return;
 
   if (t.dataset.tab) { ui.tab = t.dataset.tab; ui.lastResult = null; return render(); }
+
+  // Settings
+  if (t.id === 'purge') {
+    const word = $('#purge-confirm').value.trim();
+    if (word !== 'DELETE') return toast('Type DELETE in the box to confirm', true);
+    ui.selected.clear(); ui.bindPerson = null; ui.bindSkip.clear(); ui.lastResult = null;
+    return act(() => api('POST', '/api/purge', { confirm: word }), 'All data deleted. A backup was saved first.');
+  }
 
   // People
   if (t.id === 'csv-import') {
@@ -320,7 +341,7 @@ document.addEventListener('submit', (ev) => {
   const body = Object.fromEntries(f.entries());
   act(() => api('POST', '/api/people', body), `Added ${body.name}`).then(() => {
     const form = $('#add-person');
-    form.role.value = body.role; form.ward.value = body.ward; form.ageGroup.value = body.ageGroup;
+    form.role.value = body.role; form.ward.value = body.ward; form.age.value = body.age;
     form.name.focus();
   }).catch(() => {});
 });

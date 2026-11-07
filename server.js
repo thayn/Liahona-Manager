@@ -91,6 +91,10 @@ const routes = [
   ['POST', '/api/cards/bind', (_, b) => store.bindCard(b.personId, b.raw, { force: !!b.force })],
   ['POST', '/api/cards/:uid/release', (p, b) => store.releaseCard(p.uid, b.status)],
   ['PATCH', '/api/settings', (_, b) => store.updateSettings(b)],
+  ['POST', '/api/purge', (_, b) => {
+    if (b.confirm !== 'DELETE') throw new HttpError(400, 'Type DELETE to confirm');
+    return store.purge({ keepSettings: b.keepSettings !== false });
+  }],
 
   ['GET', '/api/export/roster.json', () => ({ __download: 'liahona-roster.json', type: 'application/json', body: JSON.stringify(store.ballRoster(), null, 2) })],
   ['GET', '/api/export/people.csv', () => ({ __download: 'liahona-people.csv', type: 'text/csv; charset=utf-8', body: store.peopleCsv() })],

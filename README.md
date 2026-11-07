@@ -20,12 +20,12 @@ Data is saved in **Documents\Liahona Data\liahona.json**, separate from the code
 
 **People**
 - Add people one at a time. Enter keeps the cursor in the name box, so typing 100 names goes quickly.
-- Import a CSV or paste rows. Columns can be in any order: `name` (or `first name` + `last name`), `role` (Youth/Leader; blank means Youth), `ward`, `age group`, `notes`, `team`. A plain list of names also works.
+- Import a CSV or paste rows. Columns can be in any order: `name` (or `first name` + `last name`), `role` (Youth/Leader; blank means Youth), `ward`, `age` (a whole number 13–18, youth only), `notes`, `team`. A plain list of names also works.
 - Names already in the list are skipped, so re-importing an updated file is safe.
 - `public/sample-roster.csv` has 100 made-up youth and 20 made-up leaders to practise with.
 
 **Teams**
-- Make N teams, then use **Auto-fill**. It spreads youth evenly, balancing age groups and wards, then gives each team 2 leaders.
+- Make N teams, then use **Auto-fill**. It spreads youth evenly, balancing ages and wards, then gives each team 2 leaders.
 - Move people by tapping them to select, then tapping **Move selected here**. This works on an iPad. On a laptop you can also drag.
 - Each team header shows youth and leader counts against the target (8–10 youth, 2 leaders) and turns red when a team is outside it.
 - Set a colour and a ball ID for each team. **Lock** a team once it's final, so it can't be changed by accident.
@@ -38,6 +38,7 @@ Data is saved in **Documents\Liahona Data\liahona.json**, separate from the code
 
 **Settings / Export**
 - Card ID format: USB readers type IDs in different ways (hex, decimal, sometimes reversed). Use the test box to check a card against what the ball reads, and change the format until they match.
+- **Delete all data:** type DELETE to wipe every person, team and card (for example, after practising with the sample roster). A copy goes to the backups folder first, and the reader settings are kept.
 - Exports: the ball roster (JSON with every card ID → person → team), people and teams as a CSV, and a full backup.
 
 ## Card reader

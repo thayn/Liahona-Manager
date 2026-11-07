@@ -25,10 +25,11 @@ test('UID: rejects junk', () => {
 });
 
 test('CSV: header aliases, quotes, roles', () => {
-  const { people, errors } = csvToPeople('First Name,Last Name,Type,Unit\nAnn,Lee,adult,Maple\n"Bo","Ray",,"Cedar, North"\nCy,Fox,alien,X\n');
-  assert.equal(people.length, 2);
-  assert.deepEqual(people.map(p => [p.name, p.role, p.ward]), [['Ann Lee', 'leader', 'Maple'], ['Bo Ray', 'youth', 'Cedar, North']]);
-  assert.equal(errors.length, 1);
+  const { people, errors } = csvToPeople('First Name,Last Name,Type,Unit,Age\nAnn,Lee,adult,Maple,44\n"Bo","Ray",,"Cedar, North",15\nCy,Fox,alien,X,\nDee,Ott,youth,X,12\n');
+  assert.equal(people.length, 3);
+  assert.deepEqual(people.map(p => [p.name, p.role, p.ward, p.age]),
+    [['Ann Lee', 'leader', 'Maple', null], ['Bo Ray', 'youth', 'Cedar, North', 15], ['Dee Ott', 'youth', 'X', null]]);
+  assert.equal(errors.length, 2, 'bad role + out-of-range age');
 });
 
 test('import, teams, autofill balance', () => {
@@ -83,4 +84,31 @@ test('cards: bind, conflict, force, replace', () => {
   const roster = s.ballRoster();
   assert.deepEqual(roster.cards, { '04111111111111': b.id });
   assert.equal(s.lookupCard('04111111111111').person.name, 'Bo');
+});
+
+test('ages: 13-18 only, leaders have none', () => {
+  const s = tmpStore();
+  const p = s.addPerson({ name: 'Kid', age: '16' });
+  assert.equal(p.age, 16);
+  assert.throws(() => s.updatePerson(p.id, { age: 12 }), /13 to 18/);
+  assert.equal(s.updatePerson(p.id, { age: '' }).age, null);
+  assert.equal(s.addPerson({ name: 'Adult', role: 'leader', age: 40 }).age, null);
+});
+
+test('old age-group text is migrated to a number', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'liahona-'));
+  const file = path.join(dir, 'db.json');
+  fs.writeFileSync(file, JSON.stringify({ people: [{ id: 'p1', name: 'A', role: 'youth', ageGroup: '14-15' }, { id: 'p2', name: 'B', role: 'leader', ageGroup: 'adults' }] }));
+  const s = new Store(file);
+  assert.deepEqual(s.db.people.map(p => [p.age, 'ageGroup' in p]), [[14, false], [null, false]]);
+});
+
+test('purge empties everything but keeps a backup and settings', () => {
+  const s = tmpStore();
+  s.importCsv(sample);
+  s.updateSettings({ uidFormat: 'decimal' });
+  const { backup } = s.purge();
+  assert.equal(s.db.people.length, 0);
+  assert.equal(s.db.settings.uidFormat, 'decimal');
+  assert.equal(JSON.parse(fs.readFileSync(backup, 'utf8')).people.length, 120);
 });
