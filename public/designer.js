@@ -3,7 +3,7 @@
 import yaml from '/vendor/js-yaml.mjs';
 import {
   TASK_TYPES, TASK_GROUPS, GATHER_MODES, TRAVEL_MODES, validateJourney, newJourney, newStage, newTask, slugify,
-  parseDuration, parseOffset, formatDuration, DEFAULT_HINT_AFTER, AUDIO_DEFAULTS
+  parseDuration, parseOffset, formatDuration, DEFAULT_HINT_AFTER, AUDIO_DEFAULTS, hasHelp
 } from '/shared/journey.js';
 
 let H;  // helpers from app.js: { api, act, toast, esc, state, refresh, rerender }
@@ -183,7 +183,7 @@ function settingsPane(j) {
     <label class="check"><input type="checkbox" data-path="penalties.unity_restore" data-kind="bool" ${j.penalties?.unity_restore !== false ? 'checked' : ''}> Everyone tapping their medallion ends Darkened early (unity)</label>
     <h3>Hints</h3>
     ${field('Offer hints after', input('hint_after', j.hint_after, `data-kind="duration" placeholder="${formatDuration(DEFAULT_HINT_AFTER)}" size="8"`), 'hint_after',
-      'How long a team works on a Task before the hint button fades in. Each Task can change this. After a hint, the next one fades in after the same wait.')}
+      'How long a team works on a Task before the hint and replay buttons fade in. Each Task can change this. Using a hint or a replay restarts the wait.')}
     <p class="hint">File: <span class="mono">${esc(D.open.file || '')}</span></p>`;
 }
 
@@ -267,7 +267,7 @@ function taskCard(t, p, ti, n) {
     <div class="grid2">${def.fields.filter(f => !f.section).map(f => taskField(t, f, p)).join('')}</div>
     ${sectionsHtml(t, def, p)}
     ${listField('Hints', t.hints || [], `${p}.hints`, { max: 3, placeholder: 'A nudge, not the answer' })}
-    ${t.hints?.length || t.hint_after !== undefined || ['audio_clue', 'name_that_hymn'].includes(t.type) ? `<div class="hint-wait">${field('Offer hints after', input(`${p}.hint_after`, t.hint_after,
+    ${hasHelp(t) || t.hint_after !== undefined ? `<div class="hint-wait">${field('Offer hints and replays after', input(`${p}.hint_after`, t.hint_after,
       `data-kind="duration" placeholder="${esc(defaultHintLabel())}" size="8"`), `${p}.hint_after`, 'Blank uses the Journey default.')}</div>` : ''}
     <div class="row">${t.brief ? '' : briefBlock(null, `${p}.brief`, 'Brief before this Task')}${t.travel ? '' : travelBlock(null, `${p}.travel`, 'Travel before this Task')}</div>
     ${t.brief ? briefBlock(t.brief, `${p}.brief`, 'Brief before this Task') : ''}
@@ -299,7 +299,7 @@ function playSummary(t) {
       : `; each hint plays the next ${more}s (up to ${clock(start + first + n * more)})`;
   }
   const r = t.replays ?? d.replays;
-  return `${line}. ${r ? `${r} replay${r > 1 ? 's' : ''} allowed.` : 'No replays.'}`;
+  return `${line}. ${r ? `${r} replay${r > 1 ? 's' : ''} allowed.` : 'No replays.'} Hints and replays appear after the hint wait.`;
 }
 
 function taskField(t, f, p) {
@@ -444,7 +444,7 @@ export function designerChange(el) {
   if (!D.open || !el.dataset.path) return false;
   designerInput(el);
   // Selects and list text change what other parts show, so redraw.
-  if (el.tagName === 'SELECT' || /\.(choices|items)\.\d+$/.test(el.dataset.path) || /\.(audio_hints|clip)$/.test(el.dataset.path)) redrawKeepingFocus();
+  if (el.tagName === 'SELECT' || /\.(choices|items)\.\d+$/.test(el.dataset.path) || /\.(audio_hints|clip|replays)$/.test(el.dataset.path)) redrawKeepingFocus();
   return true;
 }
 

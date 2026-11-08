@@ -127,3 +127,15 @@ test('audio playback: snippets, audio hints, replays', () => {
   assert.ok(bad.includes('stages.2.tasks.0.start') && bad.includes('stages.2.tasks.0.hint_audio'));
   assert.equal(compileJourney(parseYaml(trialText)).stages[1].tasks[0].replays, undefined, 'question without a clip has no replays');
 });
+
+test('replays wait for the hint timer too', () => {
+  const j = parseYaml(trialText);
+  j.stages[1].tasks.push({ type: 'clip', clip: 'x.mjpeg' });
+  j.stages[1].tasks.push({ type: 'clip', clip: 'y.mjpeg', replays: 0 });
+  const c = compileJourney(j);
+  assert.equal(c.stages[1].tasks[2].replays, 1);
+  assert.equal(c.stages[1].tasks[2].hint_after, 120, 'a clip with replays gets the hint wait');
+  assert.equal(c.stages[1].tasks[3].hint_after, undefined, 'no replays, no wait');
+  j.stages[1].tasks[3].hint_after = 30;
+  assert.ok(validateJourney(j).some(i => i.level === 'warning' && i.path === 'stages.1.tasks.3.hint_after'));
+});

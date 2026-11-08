@@ -41,7 +41,7 @@ export const TASK_TYPES = {
       { key: 'answer', kind: 'answer', label: 'Correct answer', required: true, of: 'choices' },
       { key: 'image', kind: 'media', label: 'Image', media: 'image' },
       { key: 'clip', kind: 'media', label: 'Clip', media: 'clip' },
-      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Offered after the hint wait, like hints. Each replay counts as a hint.' }
     ]
   },
   true_false: {
@@ -79,7 +79,7 @@ export const TASK_TYPES = {
       { key: 'audio_hints', kind: 'number', label: 'Audio hints', section: 'Playback', min: 0, max: 5, placeholder: '3', help: 'How many times a hint plays more of the song.' },
       { key: 'hint_adds', kind: 'duration', label: 'Each hint plays', section: 'Playback', placeholder: '5s' },
       { key: 'hint_audio', kind: 'select', label: 'On a hint', section: 'Playback', options: HINT_AUDIO },
-      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Offered after the hint wait, like hints. Each replay counts as a hint.' }
     ]
   },
   name_that_hymn: {
@@ -95,7 +95,7 @@ export const TASK_TYPES = {
       { key: 'audio_hints', kind: 'number', label: 'Audio hints', section: 'Playback', min: 0, max: 5, placeholder: '3', help: 'How many times a hint plays more of the song.' },
       { key: 'hint_adds', kind: 'duration', label: 'Each hint plays', section: 'Playback', placeholder: '5s' },
       { key: 'hint_audio', kind: 'select', label: 'On a hint', section: 'Playback', options: HINT_AUDIO },
-      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Offered after the hint wait, like hints. Each replay counts as a hint.' }
     ]
   },
   clip: {
@@ -103,7 +103,7 @@ export const TASK_TYPES = {
     fields: [
       { key: 'clip', kind: 'media', label: 'Clip', media: 'clip', required: true },
       { key: 'prompt', kind: 'text', label: 'Caption' },
-      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Each replay counts as using a hint.' }
+      { key: 'replays', kind: 'number', label: 'Replays allowed', section: 'Playback', min: 0, max: 5, placeholder: '1', help: 'Offered after the hint wait, like hints. Each replay counts as a hint.' }
     ]
   },
   sing: {
@@ -258,6 +258,14 @@ export function newTask(type) {
 
 const AUDIO_TASKS = new Set(['audio_clue', 'name_that_hymn']);
 export function hasAudioHints(t) { return AUDIO_TASKS.has(t?.type) && (t.audio_hints ?? AUDIO_DEFAULTS.audio_hints) > 0; }
+/** Replays a Task allows (0 if it has nothing to replay). */
+export function replaysFor(t) {
+  if (AUDIO_TASKS.has(t?.type)) return t.replays ?? AUDIO_DEFAULTS.replays;
+  if (t?.type === 'clip' || (t?.type === 'question' && t.clip)) return t.replays ?? VIDEO_DEFAULTS.replays;
+  return 0;
+}
+/** True when a Task shows a hint or replay button, so it needs a hint wait. */
+export function hasHelp(t) { return !!t?.hints?.length || hasAudioHints(t) || replaysFor(t) > 0; }
 
 /** Every place key a Journey mentions, with where. */
 export function referencedPlaces(j) {
@@ -426,7 +434,7 @@ export function validateJourney(j, ctx = {}) {
     }
     if (t.hint_after !== undefined) {
       if (!Number.isFinite(parseDuration(t.hint_after))) err(`${path}.hint_after`, `${name}: hint wait "${t.hint_after}" isn't a duration (try 90 or 2m)`);
-      else if (!t.hints?.length && !hasAudioHints(t)) warn(`${path}.hint_after`, `${name}: has a hint wait but no hints`);
+      else if (!hasHelp(t)) warn(`${path}.hint_after`, `${name}: has a hint wait but no hints or replays`);
     }
     checkBrief(t.brief, `${path}.brief`, name);
     checkTravel(t.travel, `${path}.travel`, name);
@@ -494,7 +502,7 @@ export function compileJourney(j, ctx = {}) {
         ...t,
         ...(t.limit !== undefined ? { limit: secs(t.limit) } : {}),
         ...(t.travel ? { travel: travel(t.travel) } : {}),
-        ...(t.hints?.length || hasAudioHints(t) ? { hint_after: t.hint_after !== undefined ? secs(t.hint_after) : hintDefault } : {}),
+        ...(hasHelp(t) ? { hint_after: t.hint_after !== undefined ? secs(t.hint_after) : hintDefault } : {}),
         ...(AUDIO_TASKS.has(t.type) ? {
           start: parseOffset(t.start ?? AUDIO_DEFAULTS.start),
           play_for: secs(t.play_for ?? AUDIO_DEFAULTS.play_for),
