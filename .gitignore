@@ -2,3 +2,6 @@ data/*.json
 data/*.tmp
 data/backups/
 node_modules/
+infra/node_modules/
+infra/cdk.out/
+infra/outputs.json

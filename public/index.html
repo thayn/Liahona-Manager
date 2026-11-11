@@ -10,17 +10,21 @@
 </head>
 <body>
   <header class="top">
-    <div class="brand"><span class="orb" aria-hidden="true"></span>Liahona Manager</div>
+    <div class="brand"><span class="orb" aria-hidden="true"></span><span id="brand-name">Liahona Manager</span></div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="teams" class="active">Teams</button>
       <button role="tab" data-tab="journeys">Journeys</button>
       <button role="tab" data-tab="places">Places</button>
       <button role="tab" data-tab="people">People</button>
+      <button role="tab" data-tab="signups">Sign-ups</button>
       <button role="tab" data-tab="cards">Cards</button>
+      <button role="tab" data-tab="users">Users</button>
       <button role="tab" data-tab="settings">Settings</button>
     </nav>
     <div class="summary" id="summary"></div>
+    <div class="whoami" id="whoami"></div>
   </header>
+  <div id="lock-banner" class="lock-banner" hidden></div>
 
   <main>
     <section id="tab-teams" class="tab active"></section>
@@ -28,11 +32,14 @@
     <section id="tab-places" class="tab"></section>
     <section id="tab-people" class="tab"></section>
     <section id="tab-cards" class="tab"></section>
+    <section id="tab-signups" class="tab"></section>
+    <section id="tab-users" class="tab"></section>
     <section id="tab-settings" class="tab"></section>
   </main>
 
  <footer class="credit">Liahona Manager · Created by Thayn Moore</footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="dialog" class="dialog"></dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

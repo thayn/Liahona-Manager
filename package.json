@@ -1,7 +1,7 @@
 {
   "name": "liahona-manager",
-  "version": "0.1.0",
-  "description": "Manager app for the Liahona camp devices: roster, team builder, NFC card binding",
+  "version": "0.3.0",
+  "description": "Manager app for the Liahona camp devices: roster, teams, cards, journeys, sign-ups. Runs on a laptop or in AWS.",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -12,5 +12,12 @@
     "node": ">=18"
   },
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1166.0",
+    "@aws-sdk/client-s3": "^3.1166.0",
+    "@aws-sdk/s3-request-presigner": "^3.1166.0",
+    "esbuild": "^0.28.2"
+  },
+  "_comment": "Nothing to install to run on the laptop. devDependencies are only for the cloud build (infra/)."
 }

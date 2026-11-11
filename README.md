@@ -1,8 +1,32 @@
-# Liahona Manager (v0.2)
+# Liahona Manager (v0.3)
 
-The laptop app for the Liahona camp devices. It covers people, teams, NFC medallions, Journeys and Places. The route builder (maps and GPS), the ball preview and ball sync come next.
+The manager for the Liahona camp devices. It covers people, teams, NFC medallions, Journeys and Places, a public sign-up form, and accounts with roles. The route builder (maps and GPS), the ball preview and ball sync come next.
 
-There are no packages to install. It runs on Node 18 or newer, and all data lives in one JSON file (see below for where).
+**The same app runs in two places:**
+- **In the cloud (AWS):** the main copy before and after camp. Leaders sign in with their own accounts, families use the sign-up form, and changes deploy from GitHub automatically. Setup is in [docs/cloud-setup.md](docs/cloud-setup.md).
+- **On the camp laptop:** works with no internet. **Download for camp** brings everything down from the cloud and makes the cloud read-only; **Upload after camp** sends it all back.
+
+On the laptop there are no packages to install. It runs on Node 18 or newer, and all data lives in one JSON file (see below for where).
+
+## Roles
+
+| Role | Can do |
+|---|---|
+| **Admin** | Everything: users, event settings, deleting data, the camp laptop |
+| **Planner** | Journeys, places, media, teams, cards. Sees names, ward, age and team, not private details |
+| **Registrar** | Sign-ups and full participant details (contacts, health, permission) |
+| **Leader** | Read-only. Sees private details only for their own team (matched by the email on their People entry) |
+
+- **In the cloud,** an Admin invites people under **Users**.
+- **On the laptop,** whoever sits at it is Admin. Phones and iPads on the camp Wi-Fi sign in with their email and a code for their role (**Settings → Sign-in codes**).
+
+## Sign-up form
+
+- **Where:** `/register` (e.g. `https://…cloudfront.net/register`) is the only page anyone can open without signing in.
+- **What it collects:** youth details, parents, emergency contact, health, and the parent's permission with a typed signature.
+- **Open or closed:** set in **Settings → Event**, along with the event name and theme. The theme can change at any time.
+- **Reviewing:** submissions wait under **Sign-ups** until a Registrar approves them into People. Ages are worked out for the event's first day.
+- **Changing the questions:** they're listed in `lib/registration.js`.
 
 ## Run it
 
@@ -14,7 +38,7 @@ Data is saved in **Documents\Liahona Data\liahona.json**, separate from the code
 
 **iPad (StackBlitz):** open the project on stackblitz.com. It starts by itself (`.stackblitzrc`) and shows the app in the preview pane. StackBlitz keeps data only while the tab is open, so download a backup (Settings → Full backup) before closing it.
 
-**Tests:** `npm test`
+**Tests:** `npm test` (the S3 test needs `npm install` first; the rest run with nothing installed)
 
 ## What it does
 

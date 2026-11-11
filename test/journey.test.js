@@ -73,7 +73,7 @@ test('journey files: import keeps comments, save, rename, duplicate, delete', ()
   const store = new Store(path.join(dir, 'liahona.json'));
   const js = new JourneyStore(dir, store);
   js.importYaml(trialText);
-  assert.ok(fs.readFileSync(js.file('leader-trial'), 'utf8').includes('# Leader Trial'), 'comments kept on import');
+  assert.ok(js.vfs.read(js.file('leader-trial')).includes('# Leader Trial'), 'comments kept on import');
   const second = js.importYaml(trialText);
   assert.equal(second.journey.id, 'leader-trial-2', 'second import gets a new ID');
   const { journey } = js.read('leader-trial');

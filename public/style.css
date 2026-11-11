@@ -218,3 +218,36 @@ td input[type=checkbox] { width: 18px; height: 18px; min-height: 0; }
 .hint-wait { max-width: 260px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; }
 @media (max-width: 900px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- cloud manager: sign-in, roles, sign-ups, users ---------- */
+.whoami { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-left: auto; }
+.whoami .hint { margin: 0; }
+.lock-banner { background: #2b1f0c; color: var(--gold-bright); border-bottom: 1px solid var(--gold-deep); padding: 10px 16px; font-size: 14px; }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--gold); color: #1a1408; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+.tag.ok { background: #18261a; color: var(--good); border-color: #2f4a2c; }
+.tag.warn { background: #2b1610; color: var(--warn); border-color: #5a2a1a; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.stack label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--quiet); }
+.stack label.nowrap, .row label { flex-direction: row; align-items: center; gap: 6px; }
+.stack input, .stack select, .stack textarea { color: var(--ink); }
+.stack textarea { min-height: 70px; }
+.nowrap { white-space: nowrap; }
+.muted { opacity: .55; }
+.error-text { color: var(--warn); }
+.linklike { background: none; border: 0; padding: 0; min-height: 0; color: var(--gold-bright); text-decoration: underline; cursor: pointer; text-align: left; }
+tr.expanded td { background: var(--surface-2); }
+dl.answers { display: grid; grid-template-columns: minmax(140px, 36%) 1fr; gap: 6px 14px; margin: 6px 0; font-size: 14px; }
+dl.answers dt { color: var(--quiet); }
+dl.answers dt.sect { grid-column: 1 / -1; color: var(--gold); font-weight: 600; margin-top: 8px; }
+dl.answers dd { margin: 0; white-space: pre-line; }
+.selectable { user-select: all; word-break: break-all; }
+.media-help { margin: -4px 0 12px; }
+.media-help button { margin-left: 6px; }
+.dialog { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; width: min(560px, 94vw); max-height: 86vh; padding: 18px; }
+.dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.dialog h4 { margin: 14px 0 0; color: var(--gold); }
+.signin-cover { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.signin-box { width: min(380px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.signin-box input { padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); }
+.signin-box .brand { font-size: 20px; margin-bottom: 4px; }
+[hidden] { display: none !important; }

@@ -19,7 +19,28 @@ export const D = {
   placeResult: null
 };
 
-export function initDesigner(helpers) { H = helpers; }
+export function initDesigner(helpers) {
+  H = helpers;
+  // After a cloud upload, refresh the open Journey's list of media files.
+  document.addEventListener('media-uploaded', async () => {
+    if (!D.open) return;
+    const r = await H.api('GET', `/api/journeys/${encodeURIComponent(D.open.id)}`);
+    D.open.mediaFiles = r.mediaFiles;
+    H.rerender();
+  });
+}
+
+function mediaHelp(j) {
+  const files = D.open.mediaFiles || [];
+  const list = files.length ? ` ${files.length} file${files.length > 1 ? 's' : ''}: ${files.map(f => H.esc(f)).join(', ')}.` : ' No files yet.';
+  if (H.mode?.() === 'cloud') {
+    if (!j.media) return 'Name a folder for this Journey\'s audio, images and clips, save, then upload files here.';
+    return `Upload audio, images and clips to the cloud.${list}
+      <button type="button" class="small" id="media-upload-btn">Upload files…</button>
+      <input type="file" id="media-upload" data-folder="${H.esc(j.media)}" multiple hidden accept=".mp4,.mp3,.wav,.m4a,.aac,.jpg,.jpeg,.png,.gif,.txt,.json">`;
+  }
+  return D.open.mediaFolder ? `Files go in ${H.esc(D.open.mediaFolder)}.${list}` : 'A folder name under Liahona Data\\media for this Journey\'s audio, images and clips.';
+}
 
 // ---------- path helpers ----------
 const segs = (path) => path.split('.').map(s => (/^\d+$/.test(s) ? Number(s) : s));
@@ -177,7 +198,8 @@ function settingsPane(j) {
       ${field('Journey ID', input('id', j.id, 'class="mono"'), 'id', 'Also the file name. Lowercase letters, numbers and dashes.')}
     </div>
     ${field('Description', `<textarea data-path="description" rows="2">${esc(j.description || '')}</textarea>`, 'description')}
-    ${field('Media folder', input('media', j.media, 'placeholder="leader-trial"'), 'media', D.open.mediaFolder ? `Files go in ${D.open.mediaFolder}` : 'A folder name under Liahona Data\\media for this Journey\'s audio, images and clips.')}
+    ${field('Media folder', input('media', j.media, 'placeholder="leader-trial"'), 'media')}
+    <div class="hint media-help">${mediaHelp(j)}</div>
     <h3>Darkened</h3>
     <div class="row">${[0, 1, 2].map(i => field(['1st mistake', '2nd', '3rd and later'][i], input(`penalties.darken_s.${i}`, d[i], 'data-kind="duration" placeholder="30" size="6"'), `penalties.darken_s.${i}`)).join('')}</div>
     <label class="check"><input type="checkbox" data-path="penalties.unity_restore" data-kind="bool" ${j.penalties?.unity_restore !== false ? 'checked' : ''}> Everyone tapping their medallion ends Darkened early (unity)</label>

@@ -1,0 +1,18 @@
+{
+  "name": "liahona-manager-infra",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "AWS setup for the Liahona Manager (CDK). Deployed by .github/workflows/deploy.yml.",
+  "scripts": {
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.276.0",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1148.0"
+  }
+}

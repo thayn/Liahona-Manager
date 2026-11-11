@@ -1,0 +1,60 @@
+# One-time setup: lets GitHub Actions in Thayn's Liahona-Manager repo deploy
+# to this AWS account, without storing any AWS keys in GitHub.
+# Create it in the AWS console: CloudFormation -> Create stack -> Upload this file.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GitHub Actions deploy role for the Liahona Manager
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: thayn
+  RepoName:
+    Type: String
+    Default: Liahona-Manager
+  CreateGitHubConnection:
+    Type: String
+    Default: 'yes'
+    AllowedValues: ['yes', 'no']
+    Description: Choose "no" only if this AWS account already trusts GitHub (an OIDC provider for token.actions.githubusercontent.com exists).
+
+Conditions:
+  MakeProvider: !Equals [!Ref CreateGitHubConnection, 'yes']
+
+Resources:
+  GitHubProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: liahona-manager-github-deploy
+      Description: Used only by GitHub Actions on the main branch of the Liahona-Manager repo
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - MakeProvider
+                - !Ref GitHubProvider
+                - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOwner}/${RepoName}:ref:refs/heads/main
+      # CDK's first-time setup creates its own roles and buckets, which needs broad
+      # rights. Only the repo's main branch can use this role.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+Outputs:
+  RoleArn:
+    Description: Paste this into GitHub as the AWS_DEPLOY_ROLE_ARN variable
+    Value: !GetAtt DeployRole.Arn

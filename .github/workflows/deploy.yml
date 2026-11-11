@@ -1,0 +1,61 @@
+# Deploys the cloud manager to AWS on every push to main (and on demand from
+# the Actions tab). One-time setup: docs/cloud-setup.md.
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write     # lets GitHub sign in to AWS with the deploy role (no stored keys)
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            infra/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          npm ci --prefix infra
+
+      - name: Test
+        run: npm test
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare the AWS account (first run only does anything)
+        working-directory: infra
+        run: npx cdk bootstrap --require-approval never
+
+      - name: Deploy
+        working-directory: infra
+        run: npx cdk deploy --require-approval never -c adminEmail="${{ vars.ADMIN_EMAIL }}" --outputs-file outputs.json
+
+      - name: Show the address
+        working-directory: infra
+        run: |
+          node -e "const o=require('./outputs.json').LiahonaManager; console.log(o.SiteUrl);
+            require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              '### Liahona Manager is live\n\n- Manager: ' + o.SiteUrl + '\n- Sign-up form: ' + o.SignUpForm + '\n');"

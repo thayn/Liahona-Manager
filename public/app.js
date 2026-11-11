@@ -1,11 +1,16 @@
 // Liahona Manager front end: plain JS, no build step.
 
 import { initDesigner, renderJourneys, renderPlaces, designerClick, designerInput, designerChange, designerKeydown, designerFile, placesChange, D } from '/designer.js';
+import { initAuth, authFetch, signOut } from '/auth.js';
+import { renderSignups, renderUsers, renderAdminPanels, personDialog, extraClick, extraChange, extraSubmit, uploadMedia, initExtra } from '/admin.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let S = null;                 // server state
+let ME = null;                // { email, name, roles, perms }
+let CFG = null;               // { mode: 'local' | 'cloud', auth, event }
+const can = (perm) => !!ME?.perms?.includes(perm);
 const ui = {
   tab: 'teams',
   peopleFilter: '',
@@ -18,7 +23,7 @@ const ui = {
 
 // ---------- API ----------
 async function api(method, url, body) {
-  const res = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const res = await authFetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) { const e = new Error(data.error || `Request failed (${res.status})`); e.data = data; e.status = res.status; throw e; }
   return data;
@@ -47,16 +52,47 @@ const ageOptions = (selected) => {
 };
 
 // ---------- render ----------
+// Which tabs each permission opens.
+const TAB_PERM = { teams: 'read', journeys: 'plan', places: 'plan', people: 'read', signups: 'people', cards: 'plan', users: 'admin', settings: 'admin' };
+
 function render() {
+  for (const b of document.querySelectorAll('.tabs button')) {
+    const ok = can(TAB_PERM[b.dataset.tab]) && (b.dataset.tab !== 'users' || CFG.mode === 'cloud');
+    b.hidden = !ok;
+  }
+  if (!can(TAB_PERM[ui.tab])) ui.tab = 'teams';
+  const pending = S.pendingRegistrations || 0;
+  const sb = document.querySelector('.tabs button[data-tab="signups"]');
+  if (sb) sb.innerHTML = `Sign-ups${pending ? ` <span class="badge">${pending}</span>` : ''}`;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === ui.tab));
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('active', s.id === `tab-${ui.tab}`));
+  $('#brand-name').textContent = S.settings.event?.name ? `${S.settings.event.name} · Liahona Manager` : 'Liahona Manager';
+  $('#whoami').innerHTML = `${esc(ME.name || ME.email)} <span class="hint">${esc(ME.roles.map(r => S.roles.find(x => x.id === r)?.label || r).join(', '))}</span>
+    ${ME.via === 'laptop' ? '' : '<button class="small" id="sign-out">Sign out</button>'}`;
+  const banner = $('#lock-banner');
+  if (S.locked) {
+    banner.hidden = false;
+    banner.textContent = `Checked out to the camp laptop${S.locked.laptop ? ` (${S.locked.laptop})` : ''} since ${new Date(S.locked.at).toLocaleString()}. This copy is read-only until the laptop uploads after camp.`;
+  } else banner.hidden = true;
   const youth = S.people.filter(p => p.role === 'youth').length;
   const leaders = S.people.length - youth;
   const carded = S.people.filter(p => p.cardUid).length;
   $('#summary').textContent = `${youth} youth · ${leaders} leaders · ${S.teams.length} teams · ${carded}/${S.people.length} cards`;
   ({ people: renderPeople, teams: renderTeams, cards: renderCards, settings: renderSettings,
+     signups: () => renderSignups($('#tab-signups')), users: () => renderUsers($('#tab-users')),
      journeys: () => renderJourneys($('#tab-journeys')), places: () => renderPlaces($('#tab-places')) })[ui.tab]();
   document.body.classList.toggle('selecting', ui.tab === 'teams' && ui.selected.size > 0);
+  // Read-only for roles that can't change this tab (the server refuses anyway).
+  if (ui.tab === 'teams' && !can('plan')) readOnly('#tab-teams');
+  if (ui.tab === 'people' && !can('people')) readOnly('#tab-people');
+}
+
+function readOnly(sel) {
+  const root = $(sel);
+  root.querySelectorAll('input:not([type="search"]):not(#people-filter), select, textarea').forEach(el => { el.disabled = true; });
+  root.querySelectorAll('button:not([data-details])').forEach(el => { el.hidden = true; });
+  root.querySelectorAll('.chip').forEach(el => { el.draggable = false; });
+  root.querySelectorAll('.ro-hide').forEach(el => { el.hidden = true; });
 }
 
 // ----- People -----
@@ -65,7 +101,7 @@ function renderPeople() {
   const rows = S.people.filter(p => !f || `${p.name} ${p.ward} ${p.age ?? ''} ${teamById(p.teamId)?.name || ''}`.toLowerCase().includes(f))
     .sort(byName);
   $('#tab-people').innerHTML = `
-    <div class="two">
+    <div class="two ro-hide">
       <div class="panel">
         <h3>Add a person</h3>
         <form id="add-person" class="row">
@@ -94,7 +130,7 @@ function renderPeople() {
         <input id="people-filter" placeholder="Filter by name, ward, team…" value="${esc(ui.peopleFilter)}">
       </div>
       <table>
-        <thead><tr><th>Name</th><th>Role</th><th>Ward</th><th>Age</th><th>Team</th><th>Card</th><th>Notes</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Role</th><th>Ward</th><th>Age</th><th>Team</th><th>Card</th><th>Email</th><th>Notes</th><th></th></tr></thead>
         <tbody>${rows.map(p => `
           <tr data-pid="${p.id}">
             <td><input data-field="name" value="${esc(p.name)}"></td>
@@ -103,8 +139,9 @@ function renderPeople() {
             <td>${p.role === 'youth' ? `<select data-field="age">${ageOptions(p.age)}</select>` : '<span class="hint">adult</span>'}</td>
             <td>${p.teamId ? `<span class="dot" style="background:${esc(teamById(p.teamId)?.color)}"></span>${esc(teamById(p.teamId)?.name)}` : '<span class="hint">none</span>'}</td>
             <td class="mono">${p.cardUid ? esc(p.cardUid) : '<span class="hint">none</span>'}</td>
+            <td><input data-field="email" type="email" value="${esc(p.email)}" placeholder="${p.role === 'leader' ? 'needed to sign in' : ''}"></td>
             <td><input data-field="notes" value="${esc(p.notes)}"></td>
-            <td><button class="small danger" data-del-person="${p.id}" title="Delete">✕</button></td>
+            <td class="nowrap"><button class="small" data-details="${p.id}" title="Details">Details</button> <button class="small danger" data-del-person="${p.id}" title="Delete">✕</button></td>
           </tr>`).join('')}</tbody>
       </table>
       ${rows.length ? '' : '<p class="hint">No one yet. Add people above or import a CSV.</p>'}
@@ -259,18 +296,22 @@ function renderSettings() {
         <h3>Export</h3>
         <p><a href="/api/export/roster.json">Ball roster (JSON)</a><br><span class="hint">Everyone's name, team and card ID, for loading onto the balls.</span></p>
         <p><a href="/api/export/people.csv">People and teams (CSV)</a><br><span class="hint">Opens in Excel or Numbers; good for printing team lists.</span></p>
-        <p><a href="/api/export/backup.json">Full backup (JSON)</a><br><span class="hint">Everything. Keep a copy before camp.</span></p>
-        <p class="hint">Saved on this computer at <span class="mono">${esc(S.dataFile)}</span>, with a daily copy in the <span class="mono">backups</span> folder beside it (last 30 days).</p>
+        <p><a href="/api/export/backup.json">Full backup (JSON)</a><br><span class="hint">Everything, including private details. Keep it safe.</span></p>
+        ${S.mode === 'local'
+          ? `<p class="hint">Saved on this computer at <span class="mono">${esc(S.dataFile)}</span>, with a daily copy in the <span class="mono">backups</span> folder beside it (last 30 days).</p>`
+          : '<p class="hint">Saved in the cloud. Every change is kept as a version, so earlier copies can be restored.</p>'}
       </div>
     </div>
+    <div id="admin-panels"></div>
     <div class="panel danger-zone">
       <h3>Delete all data</h3>
-      <p class="hint">Removes every person, team and card so you can start over (for example, after practising with the sample roster). A copy is saved in the backups folder first. Card reader settings are kept.</p>
+      <p class="hint">Removes every person, team and card so you can start over (for example, after practising with the sample roster). ${S.mode === 'local' ? 'A copy is saved in the backups folder first.' : 'The earlier version stays in the cloud history.'} Card reader settings are kept.</p>
       <div class="row" style="margin-top:8px">
         <input id="purge-confirm" placeholder="Type DELETE" autocomplete="off" autocapitalize="characters" spellcheck="false">
         <button id="purge" class="danger-solid">Delete all data</button>
       </div>
     </div>`;
+  renderAdminPanels($('#admin-panels'));
 }
 
 // ---------- events ----------
@@ -282,6 +323,10 @@ document.addEventListener('click', async (ev) => {
     if (ui.tab === 'journeys' && t.dataset.tab !== 'journeys' && D.open?.dirty && !confirm('You have unsaved Journey changes. Leave them for now? (They stay open until you come back.)')) return;
     ui.tab = t.dataset.tab; ui.lastResult = null; return render();
   }
+  if (t.id === 'sign-out') return signOut();
+  if (t.dataset.details) return personDialog(t.dataset.details);
+  if (t.id === 'media-upload-btn') { $('#media-upload')?.click(); return; }
+  if (await extraClick(t, ev)) return;
   if (t.dataset.act && (ui.tab === 'journeys' || ui.tab === 'places')) { await designerClick(t, ev); return; }
 
   // Settings
@@ -343,6 +388,7 @@ document.addEventListener('click', async (ev) => {
 });
 
 document.addEventListener('submit', (ev) => {
+  if (extraSubmit(ev)) return;
   if (ev.target.id !== 'add-person') return;
   ev.preventDefault();
   const f = new FormData(ev.target);
@@ -356,6 +402,8 @@ document.addEventListener('submit', (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target;
+  if (el.id === 'media-upload') { uploadMedia(el); return; }
+  if (extraChange(el)) return;
   if (ui.tab === 'journeys') { if (el.type === 'file') { designerFile(el); return; } if (designerChange(el)) return; }
   if (ui.tab === 'places' && placesChange(el)) return;
   const row = el.closest('tr[data-pid]');
@@ -415,5 +463,8 @@ document.addEventListener('drop', (ev) => {
   act(() => api('POST', '/api/assign', { personIds: ids, teamId: col.dataset.team || null }), r => `Moved ${r.moved}`).catch(() => {});
 });
 
-initDesigner({ api, act, toast, esc, state: () => S, refresh, rerender: () => render() });
-refresh().catch(e => toast(`Can't reach the server: ${e.message}`, true));
+initDesigner({ api, act, toast, esc, state: () => S, refresh, rerender: () => render(), can: (p) => can(p), mode: () => CFG?.mode });
+initExtra({ api, act, toast, esc, state: () => S, me: () => ME, cfg: () => CFG, can, refresh, rerender: () => render() });
+initAuth()
+  .then(({ cfg, me }) => { CFG = cfg; ME = me; return refresh(); })
+  .catch(e => toast(`Can't reach the server: ${e.message}`, true));

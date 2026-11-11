@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Youth sign-up</title>
+  <link rel="icon" href="/liahona.ico">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <style>
+    :root { --accent: #B98F3E; --ink: #2a2117; --muted: #6f6253; --line: #e3d9c8; --bg: #faf6ef; --bad: #b3261e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header { background: var(--ink); color: #f3e9d6; padding: 28px 20px 24px; text-align: center; border-bottom: 6px solid var(--accent); }
+    header h1 { margin: 0; font: 600 30px/1.15 Georgia, "Times New Roman", serif; letter-spacing: .04em; }
+    header .tag { margin: 6px 0 0; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; font-size: 13px; font-weight: 600; }
+    header .meta { margin: 10px 0 0; font-size: 15px; opacity: .85; }
+    main { max-width: 680px; margin: 0 auto; padding: 20px 16px 60px; }
+    .intro { white-space: pre-line; }
+    h2 { font: 600 20px Georgia, serif; margin: 32px 0 4px; padding-top: 16px; border-top: 1px solid var(--line); }
+    h2 + .help { margin-top: 0; }
+    .help { color: var(--muted); font-size: 14px; margin: 2px 0 8px; }
+    .q { margin: 16px 0; }
+    .q > label, .q > .label { display: block; font-weight: 600; margin-bottom: 6px; }
+    .req { color: var(--bad); margin-left: 2px; }
+    input[type=text], input[type=email], input[type=tel], input[type=date], select, textarea {
+      width: 100%; padding: 11px 12px; font: inherit; border: 1px solid #cbbfa9; border-radius: 8px; background: #fff; }
+    textarea { min-height: 76px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .opts label { display: flex; gap: 10px; align-items: center; padding: 8px 0; font-weight: 400; }
+    .opts input, .agree input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+    .agree { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: 10px; font-weight: 400 !important; }
+    .sig { font: italic 22px Georgia, serif; }
+    .err { color: var(--bad); font-size: 14px; margin-top: 4px; }
+    .q.bad input, .q.bad select, .q.bad textarea, .q.bad .agree { border-color: var(--bad); }
+    button { font: 600 17px system-ui, sans-serif; padding: 14px 22px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer; width: 100%; margin-top: 24px; }
+    button.secondary { background: transparent; color: var(--ink); border: 1px solid #cbbfa9; }
+    button:disabled { opacity: .6; }
+    .notice { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 22px; text-align: center; margin-top: 20px; }
+    .notice h2 { border: 0; margin: 0 0 6px; padding: 0; }
+    .trap { position: absolute; left: -5000px; height: 0; overflow: hidden; }
+    .banner { background: #fdecea; color: var(--bad); padding: 12px 14px; border-radius: 8px; margin-top: 16px; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; padding: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="ev-name">Youth sign-up</h1>
+    <p class="tag" id="ev-tagline"></p>
+    <p class="meta" id="ev-meta"></p>
+  </header>
+  <main id="main"><p class="help">Loading…</p></main>
+  <footer>Your details are only shared with the camp leaders who need them.</footer>
+  <script type="module" src="/register.js"></script>
+</body>
+</html>
