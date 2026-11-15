@@ -259,6 +259,11 @@ dl.answers dd { margin: 0; white-space: pre-line; }
 @media (max-width: 900px) { .field-grid { grid-template-columns: 1fr; } }
 .field-grid .row { gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 .field-plot { width: 100%; height: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
+.field-map { height: 360px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); z-index: 0; }
+.field-map .ball-tip { background: rgba(14, 12, 9, 0.85); color: var(--ink); border: 1px solid var(--line); box-shadow: none; padding: 2px 6px; }
+.field-map .ball-tip::before { display: none; }
+.field-map .leaflet-control-attribution { background: rgba(14, 12, 9, 0.7); color: var(--quiet); }
+.field-map .leaflet-control-attribution a { color: var(--gold); }
 .field-plot text { fill: var(--ink); font-size: 12px; }
 .field-plot .plot-empty { fill: var(--quiet); font-size: 14px; }
 .field-plot .plot-scale line, .field-plot .plot-north line { stroke: var(--quiet); stroke-width: 2; }

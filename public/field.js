@@ -2,8 +2,9 @@
 // Chrome or Edge). Shows every ball's last report, plots GPS positions, sends leader
 // messages and commands, and keeps a delivery log. Works fully offline.
 
-import { parseLine, buildCommand, newField, apply, describeSend, freshness, ago, signal, fitPlot, scaleBar,
+import { parseLine, buildCommand, newField, apply, describeSend, freshness, ago, signal,
          utf8Len, MSG_MAX_BYTES } from '/shared/field.js';
+import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 
 const STORE_KEY = 'liahona-field-v1';
 const ESPRESSIF_VID = 0x303a;            // XIAO ESP32-S3 USB
@@ -12,6 +13,7 @@ let ctx = null;                          // { esc, toast, state }
 let F = loadField();
 const link = { port: null, reader: null, writer: null, closed: null, status: 'off', autoTried: false };
 const ui = { to: 'all', root: null };
+const map = { m: null, layers: {}, auto: true, lastFit: '', tilesOk: null };   // auto: keep every ball in view until the leader pans or zooms
 let tick = null;
 
 export function initField(c) { ctx = c; }
@@ -138,6 +140,11 @@ export function renderField(root) {
 
 function build(root) {
   root.dataset.built = '1';
+  if (!document.querySelector('link[href="/vendor/leaflet/leaflet.css"]')) {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = '/vendor/leaflet/leaflet.css';
+    document.head.appendChild(css);
+  }
   root.innerHTML = `
     <div class="panel field-bar">
       <div class="row">
@@ -177,8 +184,9 @@ function build(root) {
         <p class="hint">Messages and commands to one ball are resent until it answers. "All" isn't confirmed.</p>
       </div>
       <div class="panel field-plot-panel">
-        <h3>Positions <span class="muted" id="f-plot-note"></span></h3>
-        <svg id="f-plot" viewBox="0 0 420 300" class="field-plot" role="img" aria-label="Ball positions"></svg>
+        <div class="row"><h3 class="grow">Positions <span class="muted" id="f-plot-note"></span></h3>
+          <button class="small ghost" id="f-fit">Fit to balls</button></div>
+        <div id="f-map" class="field-map" role="img" aria-label="Map of ball positions"></div>
       </div>
     </div>
 
@@ -208,9 +216,11 @@ function build(root) {
     if (t.id === 'f-connect') return link.status === 'on' ? disconnect() : connect();
     if (t.id === 'f-power-set') return send('power', null, { dbm: Number($('#f-power').value) });
     if (t.id === 'f-download') return downloadLog();
+    if (t.id === 'f-fit') { map.auto = true; map.lastFit = ''; return update(); }
     if (t.id === 'f-clear') {
       if (!confirm('Clear the log and the list of balls on this laptop?')) return;
       F = { ...newField(), base: F.base };
+      map.auto = true; map.lastFit = '';
       saveSoon(); return update();
     }
     if (t.dataset.f) return doSend(t.dataset.f, t.dataset.ball);
@@ -287,8 +297,8 @@ function update() {
   }).join('');
   $('#f-balls').innerHTML = rows || `<tr><td colspan="9" class="muted">No balls heard yet. Balls report every 30 seconds once their radio is on. Give each team a ball number on the Teams tab to list it here.</td></tr>`;
 
-  // plot
-  drawPlot($('#f-plot'), $('#f-plot-note'), now);
+  // map
+  drawMap($('#f-map'), $('#f-plot-note'), now);
 
   // log
   const stateTag = (s) => s ? `<span class="tag ${s === 'delivered' ? 'ok' : s === 'waiting' || s === 'sent' ? '' : 'warn'}">${esc(s)}</span>` : '';
@@ -298,36 +308,70 @@ function update() {
       ${esc(e.text)} ${stateTag(e.state)}</li>`).join('') || '<li class="muted">Nothing yet.</li>';
 }
 
-function drawPlot(svg, note, now) {
-  const W = 420, H = 300;
-  const balls = Object.values(F.balls).filter(b => Number.isFinite(b.lat));
-  const pts = balls.flatMap(b => b.trail.length ? b.trail : [{ lat: b.lat, lon: b.lon }]);
-  const fit = fitPlot(pts, W, H);
-  if (!fit) {
-    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="plot-empty">No GPS fixes yet</text>`;
-    note.textContent = '';
-    return;
-  }
+// ---------- map (OpenStreetMap tiles; ball markers still show when offline) ----------
+function makeMap(el) {
+  const m = L.map(el, { zoomControl: true, attributionControl: true }).setView([46.73, -120.95], 13);
+  const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(m);
+  tiles.on('tileload', () => { if (map.tilesOk !== true) { map.tilesOk = true; update(); } });
+  tiles.on('tileerror', () => { if (map.tilesOk !== true) { map.tilesOk = false; update(); } });
+  L.control.scale({ metric: true, imperial: true }).addTo(m);
+  // Once the leader pans or zooms, stop following; "Fit to balls" turns it back on.
+  const manual = () => { map.auto = false; };
+  m.on('dragstart', manual);
+  el.addEventListener('wheel', manual, { passive: true });
+  el.addEventListener('dblclick', manual);
+  el.querySelector('.leaflet-control-zoom')?.addEventListener('click', manual);
+  return m;
+}
+
+function drawMap(el, note, now) {
+  if (!map.m) map.m = makeMap(el);
+  if (!el.offsetParent) return;                          // tab hidden: Leaflet can't measure
+  map.m.invalidateSize(false);
   const { esc } = ctx;
-  let out = '';
+  const balls = Object.values(F.balls).filter(b => Number.isFinite(b.lat));
+  const seen = new Set();
   for (const b of balls) {
+    seen.add(String(b.id));
     const t = teamForBall(b.id);
     const color = t?.color || '#c9a24a';
-    if (b.trail.length > 1) {
-      const d = b.trail.map((p, i) => { const [x, y] = fit.project(p.lat, p.lon); return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`; }).join(' ');
-      out += `<path d="${d}" fill="none" stroke="${esc(color)}" stroke-opacity="0.45" stroke-width="2"/>`;
-    }
-    const [x, y] = fit.project(b.lat, b.lon);
     const fresh = freshness(b, now);
-    out += `<g class="plot-ball fresh-${fresh}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${esc(color)}"/>
-      <text x="${(x + 10).toFixed(1)}" y="${(y + 4).toFixed(1)}">${b.id}${t ? ` ${esc(t.name)}` : ''}</text></g>`;
+    const label = `${b.id}${t ? ` ${t.name}` : ''}`;
+    const info = `<strong>${esc(label)}</strong><br>Fix ${ago(b.fixAt, now)}<br>${b.batt ? b.batt.toFixed(2) + ' V · ' : ''}step ${b.stage} · lid ${esc(b.lid)}`;
+    let lay = map.layers[b.id];
+    if (!lay) {
+      lay = map.layers[b.id] = {
+        trail: L.polyline([], { color, weight: 3, opacity: 0.5 }).addTo(map.m),
+        dot: L.circleMarker([b.lat, b.lon], { radius: 8, color: '#0e0c09', weight: 2, fillColor: color, fillOpacity: 1 })
+          .bindTooltip(esc(label), { permanent: true, direction: 'right', offset: [8, 0], className: 'ball-tip' })
+          .bindPopup('').addTo(map.m)
+      };
+    }
+    lay.dot.setLatLng([b.lat, b.lon]);
+    lay.dot.setStyle({ fillColor: color, fillOpacity: fresh === 'ok' ? 1 : fresh === 'stale' ? 0.6 : 0.3 });
+    lay.dot.setTooltipContent(esc(label));
+    lay.dot.setPopupContent(info);
+    lay.trail.setStyle({ color });
+    lay.trail.setLatLngs(b.trail.map(p => [p.lat, p.lon]));
   }
-  const bar = scaleBar(fit.metresPerPx, W);
-  out += `<g class="plot-scale"><line x1="14" y1="${H - 14}" x2="${(14 + bar.px).toFixed(1)}" y2="${H - 14}"/>
-    <text x="14" y="${H - 20}">${bar.label}</text></g>
-    <g class="plot-north"><text x="${W - 16}" y="20" text-anchor="middle">N</text><line x1="${W - 16}" y1="24" x2="${W - 16}" y2="40"/></g>`;
-  svg.innerHTML = out;
-  note.textContent = '· last known positions, north up';
+  for (const id of Object.keys(map.layers)) {              // balls cleared from the list
+    if (!seen.has(id)) { map.layers[id].dot.remove(); map.layers[id].trail.remove(); delete map.layers[id]; }
+  }
+  if (balls.length && map.auto) {                          // follow: keep every ball's latest spot in view
+    const pts = balls.map(b => [b.lat, b.lon]);
+    const key = pts.map(p => p.join(',')).join(';');
+    if (key !== map.lastFit) {
+      map.lastFit = key;
+      if (pts.length === 1) map.m.setView(pts[0], Math.max(map.m.getZoom(), 16), { animate: false });
+      else map.m.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 17, animate: false });
+    }
+  }
+  note.textContent = !balls.length ? '· no GPS fixes yet'
+    : map.tilesOk === false ? '· map needs internet; positions still update'
+    : '· last known positions';
 }
 
 function downloadLog() {

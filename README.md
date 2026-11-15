@@ -49,6 +49,8 @@ The **Field** tab talks to the XIAO base station over USB, straight from the bro
 3. Each ball shows up once it reports, every 30 seconds: last heard, battery, lid, step, GPS and signal. Give each team a **ball number** on the Teams tab so balls show their team name and colour.
 4. **Send to the balls:** pick one ball or **All**, then send a message (up to 48 bytes), Ping, Unlock, Skip, Dim, Restore, or jump to a step. Messages and commands to one ball show **delivered** or **no answer** in the log.
 
+The **map** uses OpenStreetMap, so its background needs internet. Without a connection, the ball dots and trails still update on a blank background. It follows every ball until you pan or zoom; **Fit to balls** turns following back on.
+
 Only one program can use the base station's port at a time, so close the VS Code Serial Monitor first. The log and last positions are kept in this browser; **Download log** saves them as a file.
 
 ## What it does
