@@ -2,6 +2,7 @@
 
 import { initDesigner, renderJourneys, renderPlaces, designerClick, designerInput, designerChange, designerKeydown, designerFile, placesChange, D } from '/designer.js';
 import { initAuth, authFetch, signOut } from '/auth.js';
+import { initField, renderField } from '/field.js';
 import { renderSignups, renderUsers, renderAdminPanels, personDialog, extraClick, extraChange, extraSubmit, uploadMedia, initExtra } from '/admin.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -53,7 +54,7 @@ const ageOptions = (selected) => {
 
 // ---------- render ----------
 // Which tabs each permission opens.
-const TAB_PERM = { teams: 'read', journeys: 'plan', places: 'plan', people: 'read', signups: 'people', cards: 'plan', users: 'admin', settings: 'admin' };
+const TAB_PERM = { teams: 'read', field: 'read', journeys: 'plan', places: 'plan', people: 'read', signups: 'people', cards: 'plan', users: 'admin', settings: 'admin' };
 
 function render() {
   for (const b of document.querySelectorAll('.tabs button')) {
@@ -80,7 +81,7 @@ function render() {
   $('#summary').textContent = `${youth} youth · ${leaders} leaders · ${S.teams.length} teams · ${carded}/${S.people.length} cards`;
   ({ people: renderPeople, teams: renderTeams, cards: renderCards, settings: renderSettings,
      signups: () => renderSignups($('#tab-signups')), users: () => renderUsers($('#tab-users')),
-     journeys: () => renderJourneys($('#tab-journeys')), places: () => renderPlaces($('#tab-places')) })[ui.tab]();
+     journeys: () => renderJourneys($('#tab-journeys')), field: () => renderField($('#tab-field')), places: () => renderPlaces($('#tab-places')) })[ui.tab]();
   document.body.classList.toggle('selecting', ui.tab === 'teams' && ui.selected.size > 0);
   // Read-only for roles that can't change this tab (the server refuses anyway).
   if (ui.tab === 'teams' && !can('plan')) readOnly('#tab-teams');
@@ -464,6 +465,7 @@ document.addEventListener('drop', (ev) => {
 });
 
 initDesigner({ api, act, toast, esc, state: () => S, refresh, rerender: () => render(), can: (p) => can(p), mode: () => CFG?.mode });
+initField({ toast, esc, state: () => S });
 initExtra({ api, act, toast, esc, state: () => S, me: () => ME, cfg: () => CFG, can, refresh, rerender: () => render() });
 initAuth()
   .then(({ cfg, me }) => { CFG = cfg; ME = me; return refresh(); })
