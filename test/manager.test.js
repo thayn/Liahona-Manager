@@ -112,3 +112,10 @@ test('purge empties everything but keeps a backup and settings', () => {
   assert.equal(s.db.settings.uidFormat, 'decimal');
   assert.equal(JSON.parse(fs.readFileSync(backup, 'utf8')).people.length, 120);
 });
+
+test('short 4-byte IDs from a USB reader are accepted without a warning', async () => {
+  const { uidWarning } = await import('../lib/uid.js');
+  assert.equal(uidWarning('A6FA4A04', 7), null);
+  assert.equal(uidWarning('044AFAA6801234', 7), null);
+  assert.match(uidWarning('044AFAA68012', 7), /bytes/);
+});
