@@ -68,7 +68,7 @@ async function openJourney(id) {
 
 function ctx() {
   const S = H.state();
-  const places = Object.fromEntries(S.places.map(p => [p.key, { name: p.name, tagOnly: p.tagOnly, tags: p.tags }]));
+  const places = Object.fromEntries(S.places.map(p => [p.key, { name: p.name, tagOnly: p.tagOnly, tags: p.tags, lat: p.lat ?? null, lon: p.lon ?? null }]));
   return { places, teams: S.teams.map(t => t.name), mediaFiles: new Set(D.open?.mediaFiles || []) };
 }
 const issues = () => (D.open ? validateJourney(D.open.data, ctx()) : []);
@@ -635,6 +635,8 @@ export async function designerClick(t, ev) {
       try { await H.api('DELETE', `/api/places/${encodeURIComponent(t.dataset.key)}`); if (D.placeBind === t.dataset.key) D.placeBind = null; await H.refresh(); }
       catch (e) { H.toast(e.message, true); }
       break;
+    case 'gps-mark': gpsStart(); break;
+    case 'gps-stop': gpsFinish(true); break;
     case 'bind-place': D.placeBind = t.dataset.key; D.placeResult = null; H.rerender(); break;
     case 'next-untagged': D.placeBind = H.state().places.find(p => !p.tags.length)?.key || null; D.placeResult = null; H.rerender(); break;
     case 'del-tag':
@@ -701,18 +703,21 @@ export function renderPlaces(el) {
         </div>
         ${missing.length ? `<p class="hint">${missing.length} place${missing.length > 1 ? 's are' : ' is'} used in Journeys but not set up: <span class="mono">${missing.map(esc).join(', ')}</span></p>
           <button data-act="places-from-journeys">Add them</button>` : '<p class="hint">Every place used in a Journey is set up.</p>'}
-        <p class="hint">GPS positions come later, with the route builder. Tag-only places skip GPS and use written directions.</p>
+        <p class="hint">Tag-only places skip GPS and use written directions.</p>
       </div>
     </div>
+    ${gpsPanel(S)}
     <div class="panel">
       <table>
-        <thead><tr><th>Place</th><th>Name</th><th>Tag-only</th><th>Tags</th><th>Used in</th><th>Notes</th><th></th></tr></thead>
+        <thead><tr><th>Place</th><th>Name</th><th>Tag-only</th><th>Tags</th><th>GPS</th><th>Used in</th><th>Notes</th><th></th></tr></thead>
         <tbody>${S.places.map(p => `<tr data-place="${esc(p.key)}" class="${D.placeBind === p.key ? 'cur-row' : ''}">
           <td class="mono">${esc(p.key)}</td>
           <td><input data-place-field="name" value="${esc(p.name)}"></td>
           <td><input type="checkbox" data-place-field="tagOnly" ${p.tagOnly ? 'checked' : ''}></td>
           <td>${p.tags.map(u => `<span class="pchip ok mono">${esc(u)}<button class="x" data-act="del-tag" data-key="${esc(p.key)}" data-uid="${esc(u)}" title="Remove tag">✕</button></span>`).join('')}
               <button class="small" data-act="bind-place" data-key="${esc(p.key)}">${p.tags.length ? '+ Tag' : 'Bind tag'}</button></td>
+          <td>${p.tagOnly ? '<span class="hint">tag-only</span>' : `<input data-place-field="gps" class="mono" size="20" value="${Number.isFinite(p.lat) ? `${p.lat}, ${p.lon}` : ''}" placeholder="paste lat, lon">
+              ${Number.isFinite(p.lat) ? `<a class="small" href="https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">map</a>${p.accuracy_m ? ` <span class="hint">±${p.accuracy_m} m</span>` : ''}` : ''}`}</td>
           <td class="hint">${esc((usage[p.key] || []).join(', ') || 'not used')}</td>
           <td><input data-place-field="notes" value="${esc(p.notes)}" placeholder="where exactly"></td>
           <td><button class="small danger" data-act="del-place" data-key="${esc(p.key)}">✕</button></td>
@@ -720,13 +725,91 @@ export function renderPlaces(el) {
       </table>
       ${S.places.length ? '' : '<p class="hint">No places yet.</p>'}
     </div>`;
-  setTimeout(() => document.getElementById('place-scan')?.focus(), 0);
+  if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => document.getElementById('place-scan')?.focus(), 0);
+}
+
+/* ---- GPS marking: stand at the place with a phone, press the button ---- */
+function gpsPanel(S) {
+  const gpsPlaces = S.places.filter(p => !p.tagOnly);
+  if (!gpsPlaces.length) return '';
+  const g = D.gps || {};
+  const sel = g.key && gpsPlaces.some(p => p.key === g.key) ? g.key : (gpsPlaces.find(p => !Number.isFinite(p.lat)) || gpsPlaces[0]).key;
+  D.gps = { ...g, key: sel };
+  const cur = gpsPlaces.find(p => p.key === sel);
+  const left = gpsPlaces.filter(p => !Number.isFinite(p.lat)).length;
+  return `<div class="panel gps-panel">
+    <h3>Mark GPS positions</h3>
+    <p class="hint">Open this page on your phone, stand at the place, and press the button. ${left ? `${left} place${left > 1 ? 's' : ''} still need${left > 1 ? '' : 's'} a position.` : 'Every GPS place has a position.'}</p>
+    <div class="row">
+      <select id="gps-place" class="grow">${gpsPlaces.map(p => `<option value="${esc(p.key)}"${p.key === sel ? ' selected' : ''}>${Number.isFinite(p.lat) ? '✓ ' : ''}${esc(p.name || p.key)}</option>`).join('')}</select>
+    </div>
+    <button class="primary big" data-act="gps-mark" ${g.busy ? 'disabled' : ''}>${g.busy ? `Getting a fix… ${g.acc ? `±${Math.round(g.acc)} m` : ''}` : `Save my location as ${esc(cur?.name || sel)}`}</button>
+    ${g.busy ? '<button class="small" data-act="gps-stop">Use this fix now</button>' : ''}
+    <div class="result ${g.msg ? `show ${g.kind}` : ''}">${g.msg || ''}</div>
+  </div>`;
+}
+
+let gpsWatch = null, gpsBest = null, gpsTimer = null;
+function gpsFinish(save) {
+  if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch);
+  clearTimeout(gpsTimer);
+  gpsWatch = null;
+  const best = gpsBest, key = D.gps.key;
+  D.gps.busy = false; D.gps.acc = null;
+  if (!save) { H.rerender(); return; }
+  if (!best) { D.gps.kind = 'bad'; D.gps.msg = 'No GPS fix yet. Step into the open and try again.'; H.rerender(); return; }
+  const { latitude: lat, longitude: lon, accuracy } = best.coords;
+  H.api('PATCH', `/api/places/${encodeURIComponent(key)}`, { lat, lon, accuracy_m: accuracy })
+    .then(async () => {
+      await H.refresh();
+      const S = H.state(), p = S.places.find(x => x.key === key);
+      const next = S.places.find(x => !x.tagOnly && !Number.isFinite(x.lat));
+      D.gps.kind = accuracy > 25 ? 'bad' : 'good';
+      D.gps.msg = `✓ Saved ${esc(p?.name || key)} at <span class="mono">${lat.toFixed(6)}, ${lon.toFixed(6)}</span> (±${Math.round(accuracy)} m)` +
+        (accuracy > 25 ? '<br>That fix is rough. Wait a moment in the open and save again.' : '');
+      if (next) D.gps.key = next.key;
+      H.rerender();
+    })
+    .catch(e => { D.gps.kind = 'bad'; D.gps.msg = esc(e.message); H.rerender(); });
+}
+function gpsStart() {
+  if (!navigator.geolocation) { D.gps.kind = 'bad'; D.gps.msg = "This browser can't read GPS."; H.rerender(); return; }
+  if (!window.isSecureContext) { D.gps.kind = 'bad'; D.gps.msg = 'GPS needs the https:// address of the Manager.'; H.rerender(); return; }
+  gpsBest = null;
+  D.gps.busy = true; D.gps.msg = ''; D.gps.acc = null;
+  H.rerender();
+  // keep the best reading for up to 12 s, or stop early once it's within 5 m
+  gpsWatch = navigator.geolocation.watchPosition(pos => {
+    if (!gpsBest || pos.coords.accuracy < gpsBest.coords.accuracy) gpsBest = pos;
+    D.gps.acc = gpsBest.coords.accuracy;
+    if (gpsBest.coords.accuracy <= 5) gpsFinish(true); else H.rerender();
+  }, err => {
+    if (gpsWatch === null) return;
+    navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; clearTimeout(gpsTimer);
+    D.gps.busy = false;
+    D.gps.kind = 'bad';
+    D.gps.msg = err.code === 1 ? 'Location permission was blocked. Allow location for this site in your browser settings.' : `GPS error: ${esc(err.message)}`;
+    H.rerender();
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  gpsTimer = setTimeout(() => gpsFinish(true), 12000);
 }
 
 export function placesChange(el) {
+  if (el.id === 'gps-place') { D.gps = { key: el.value }; H.rerender(); return true; }
   const row = el.closest('tr[data-place]');
   if (!row || !el.dataset.placeField) return false;
   const f = el.dataset.placeField;
+  if (f === 'gps') {
+    const v = el.value.trim();
+    let body = { lat: null, lon: null };
+    if (v) {
+      const m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (!m) { H.toast('Paste the position as "lat, lon", e.g. 47.81234, -122.30123', true); return true; }
+      body = { lat: Number(m[1]), lon: Number(m[2]) };
+    }
+    H.act(() => H.api('PATCH', `/api/places/${encodeURIComponent(row.dataset.place)}`, body));
+    return true;
+  }
   H.act(() => H.api('PATCH', `/api/places/${encodeURIComponent(row.dataset.place)}`, { [f]: f === 'tagOnly' ? el.checked : el.value }));
   return true;
 }

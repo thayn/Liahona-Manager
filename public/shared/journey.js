@@ -366,6 +366,7 @@ export function validateJourney(j, ctx = {}) {
     if (tr.limit !== undefined && !Number.isFinite(parseDuration(tr.limit))) err(`${path}.limit`, `${label}: time limit "${tr.limit}" isn't a duration`);
     const place = ctx.places?.[tr.to];
     if (place && mode === 'pointers' && place.tagOnly) warn(`${path}.mode`, `${label}: "${tr.to}" is tag-only (no GPS), so use Written directions`);
+    else if (place && mode === 'pointers' && 'lat' in place && !Number.isFinite(place.lat)) warn(`${path}.to`, `${label}: "${tr.to}" has no GPS position yet, so the compass can't point to it (mark it on the Places tab)`);
   }
 
   function checkTask(t, path, label) {
