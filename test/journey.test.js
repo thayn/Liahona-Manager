@@ -90,6 +90,18 @@ test('journey files: import keeps comments, save, rename, duplicate, delete', ()
   store.bindPlaceTag('plate-1', '04A1B2C3D4E5F6');
   const p = store.addPerson({ name: 'Ann' });
   assert.throws(() => store.bindCard(p.id, '04A1B2C3D4E5F6'), /place/);
+
+  // GPS positions: saved, rounded, carried into the Ball file, and cleared
+  store.updatePlace('plate-1', { lat: 47.8123456789, lon: -122.3012345678, accuracy_m: 4.6 });
+  assert.equal(store.place('plate-1').lat, 47.812346);
+  assert.equal(store.place('plate-1').accuracy_m, 5);
+  assert.equal(store.placeMap()['plate-1'].lon, -122.301235);
+  const ball = compileJourney(trial(), { places: store.placeMap() });
+  assert.equal(ball.places['plate-1'].lat, 47.812346);
+  assert.throws(() => store.updatePlace('plate-1', { lat: 120, lon: 0 }), /GPS/);
+  assert.throws(() => store.updatePlace('plate-1', { lat: 'abc', lon: 1 }), /GPS/);
+  store.updatePlace('plate-1', { lat: null, lon: null });
+  assert.equal(store.place('plate-1').lat, null);
 });
 
 test('hint wait: per Task, falling back to the Journey default', () => {
