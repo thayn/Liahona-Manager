@@ -27,7 +27,7 @@ function token({ email, groups = [], exp = 3600, aud = CLIENT }) {
 }
 
 function fakeCloud({ conflictsFirst = 0 } = {}) {
-  const s3 = { doc: null, etag: null, n: 0, conflicts: conflictsFirst, saves: 0 };
+  const s3 = { doc: null, etag: null, n: 0, conflicts: conflictsFirst, saves: 0, objects: {} };
   const storage = {
     async load() { return { doc: s3.doc ? JSON.parse(JSON.stringify(s3.doc)) : null, etag: s3.etag }; },
     async save(doc, etag) {
@@ -39,14 +39,17 @@ function fakeCloud({ conflictsFirst = 0 } = {}) {
   const media = {
     presignGet: async (f, n) => `https://media.test/get/${f}/${n}`,
     presignPut: async (f, n) => `https://media.test/put/${f}/${n}`,
-    remove: async () => {}
+    remove: async () => {},
+    head: async (f, n) => (s3.objects[`${f}/${n}`] ? { etag: `"etag-${s3.objects[`${f}/${n}`].length}"`, size: s3.objects[`${f}/${n}`].length } : null),
+    put: async (f, n, buf) => { s3.objects[`${f}/${n}`] = buf; }
   };
   const users = { list: async () => [], invite: async () => ({}), update: async () => ({}), remove: async () => ({}) };
   const handle = makeCloudHandler({ storage, media, users, auth: { region: REGION, userPoolId: POOL, clientId: CLIENT, domain: 'x', jwks: [jwk] } });
   const call = async (method, p, { as, body, headers = {} } = {}) => {
     const h = { ...headers };
     if (as) h.authorization = `Bearer ${as}`;
-    const out = await handle({ method, path: p, query: new URLSearchParams(), headers: h, body: body || {}, ip: '1.2.3.4' });
+    const u = new URL(p, 'http://x');
+    const out = await handle({ method, path: u.pathname, query: u.searchParams, headers: h, body: body || {}, ip: '1.2.3.4' });
     return { status: out.status, data: JSON.parse(out.body || '{}') };
   };
   return { s3, handle, call };
@@ -224,4 +227,21 @@ test('first-time setup: copy an existing laptop into an empty cloud', async () =
   const st = (await cloud.call('GET', '/api/state', { as: admin })).data;
   assert.equal(st.people.length, 120);
   assert.equal((await cloud.call('GET', '/api/journeys', { as: planner })).data.length, 1);
+});
+
+test('cloud: balls get presigned S3 links for firmware, and the key stays private', async () => {
+  const { call, s3 } = fakeCloud();
+  const img = Buffer.alloc(4096); img[0] = 0xE9; img.writeUInt32LE(0xABCD5432, 32); img.write('0.5.0', 48); img.write('liahona_fw', 80);
+  let r = await call('POST', '/api/ball/firmware', { as: admin, body: { name: 'liahona_fw.bin', data: img.toString('base64') } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(Object.keys(s3.objects).length, 1, 'firmware stored in the media bucket');
+  r = await call('POST', '/api/ball/key', { as: admin });
+  const key = r.data.key;
+  assert.ok(key);
+  assert.equal((await call('GET', '/api/ball', { as: planner })).data.key, undefined, 'planners never see the key');
+  r = await call('GET', `/api/ball/package?key=${key}`);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.ok(r.data.firmware.url.startsWith('https://media.test/get/_firmware/liahona_fw-0.5.0-'));
+  assert.deepEqual(r.data.files.map(f => f.path), ['roster.json']);
+  assert.equal((await call('GET', '/api/ball/package?key=nope')).status, 401);
 });

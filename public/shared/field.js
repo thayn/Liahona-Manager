@@ -5,7 +5,7 @@
 export const MSG_MAX_BYTES = 48;          // radio packet limit for leader messages
 export const STALE_S = 90;                // amber after this long without a report
 export const LOST_S = 180;                // red after this long
-export const COMMANDS = ['unlock', 'skip', 'dim', 'restore'];
+export const COMMANDS = ['unlock', 'skip', 'dim', 'restore', 'update'];
 
 export const utf8Len = (s) => new TextEncoder().encode(String(s ?? '')).length;
 
@@ -118,10 +118,38 @@ export function apply(f, ev, now = Date.now()) {
       if (s) { s.state = 'no answer'; delete f.sends[key]; }
       return null;
     }
+    case 'update': {
+      const b = f.balls[ev.ball] || (f.balls[ev.ball] = { id: ev.ball, trail: [], reports: 0 });
+      b.at = now; b.rssi = ev.rssi; b.snr = ev.snr;
+      b.update = { state: ev.state, done: ev.done, total: ev.total, detail: ev.detail, error: ev.error, version: ev.version, at: now };
+      if (ev.version) b.version = ev.version;
+      const text = updateText(b.update);
+      // progress lines update the table; the start and the outcome go in the log too
+      if (['wifi', 'done', 'current', 'failed', 'reboot'].includes(ev.state)) {
+        return addLog(f, { at: now, kind: ev.state === 'failed' ? 'error' : 'update', ball: ev.ball, text });
+      }
+      return null;
+    }
     case 'error':
       return addLog(f, { at: now, kind: 'error', text: ev.msg || 'Base station error' });
     default:
       return null;
+  }
+}
+
+/** A ball's Wi-Fi update progress in words. */
+export function updateText(u) {
+  if (!u) return '';
+  switch (u.state) {
+    case 'wifi': return 'Update: joining Wi-Fi';
+    case 'check': return 'Update: asking the Manager';
+    case 'files': return `Update: files ${u.done}/${u.total}`;
+    case 'firmware': return `Update: firmware ${u.detail}%`;
+    case 'reboot': return `Update: firmware ${u.version} installed, restarting`;
+    case 'done': return `Updated: ${u.done} file${u.done === 1 ? '' : 's'}${u.version ? `, firmware ${u.version}` : ''}`;
+    case 'current': return `Already up to date${u.version ? ` (firmware ${u.version})` : ''}`;
+    case 'failed': return `Update failed: ${u.error || 'unknown reason'}`;
+    default: return `Update: ${u.state}`;
   }
 }
 
@@ -130,6 +158,7 @@ export function describeSend(kind, extra = {}) {
   if (kind === 'msg') return `Message: "${extra.text}"`;
   if (kind === 'stage') return `Jump to step ${extra.stage}`;
   if (kind === 'ping') return 'Ping';
+  if (kind === 'update') return 'Update over Wi-Fi';
   return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 

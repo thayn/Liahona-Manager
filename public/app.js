@@ -3,6 +3,7 @@
 import { initDesigner, renderJourneys, renderPlaces, designerClick, designerInput, designerChange, designerKeydown, designerFile, placesChange, D } from '/designer.js';
 import { initAuth, authFetch, signOut } from '/auth.js';
 import { initField, renderField } from '/field.js';
+import { initBalls, renderBalls } from '/balls.js';
 import { renderSignups, renderUsers, renderAdminPanels, personDialog, extraClick, extraChange, extraSubmit, uploadMedia, initExtra } from '/admin.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -303,6 +304,7 @@ function renderSettings() {
           : '<p class="hint">Saved in the cloud. Every change is kept as a version, so earlier copies can be restored.</p>'}
       </div>
     </div>
+    <div id="ball-panel"></div>
     <div id="admin-panels"></div>
     <div class="panel danger-zone">
       <h3>Delete all data</h3>
@@ -313,6 +315,7 @@ function renderSettings() {
       </div>
     </div>`;
   renderAdminPanels($('#admin-panels'));
+  if (can('plan')) renderBalls($('#ball-panel'));
 }
 
 // ---------- events ----------
@@ -466,6 +469,7 @@ document.addEventListener('drop', (ev) => {
 
 initDesigner({ api, act, toast, esc, state: () => S, refresh, rerender: () => render(), can: (p) => can(p), mode: () => CFG?.mode });
 initField({ toast, esc, state: () => S });
+initBalls({ api, toast, esc, can: (p) => can(p), mode: () => CFG?.mode });
 initExtra({ api, act, toast, esc, state: () => S, me: () => ME, cfg: () => CFG, can, refresh, rerender: () => render() });
 initAuth()
   .then(({ cfg, me }) => { CFG = cfg; ME = me; return refresh(); })

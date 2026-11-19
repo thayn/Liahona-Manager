@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLine, buildCommand, newField, apply, describeSend, freshness, signal, fitPlot, scaleBar, utf8Len } from '../public/shared/field.js';
+import { parseLine, buildCommand, newField, apply, describeSend, freshness, signal, fitPlot, scaleBar, utf8Len, updateText } from '../public/shared/field.js';
 
 test('parses base-station lines and ignores noise', () => {
   assert.equal(parseLine('I (149) boot: Disabling RNG'), null);
@@ -71,4 +71,20 @@ test('signal and plot helpers', () => {
   assert.ok(Math.abs(x1 - x2) < 0.01);
   const bar = scaleBar(fit.metresPerPx, 400);
   assert.ok(bar.px > 20 && bar.px < 400);
+});
+
+test('update progress from the balls', () => {
+  const f = newField();
+  assert.equal(buildCommand('update', 'all'), '{"cmd":"update","to":"all"}');
+  const now = 1000;
+  let e = apply(f, parseLine('{"ev":"update","ball":2,"state":"wifi","detail":0,"done":0,"total":0,"version":"0.4.0","rssi":-80,"snr":5}'), now);
+  assert.match(e.text, /joining Wi-Fi/);
+  assert.equal(apply(f, parseLine('{"ev":"update","ball":2,"state":"files","detail":0,"done":1,"total":3,"version":"0.4.0","rssi":-80,"snr":5}'), now), null);
+  assert.match(updateText(f.balls[2].update), /files 1\/3/);
+  e = apply(f, parseLine('{"ev":"update","ball":2,"state":"failed","detail":2,"done":1,"total":3,"version":"0.4.0","error":"couldn\'t join Wi-Fi","rssi":-80,"snr":5}'), now);
+  assert.equal(e.kind, 'error');
+  assert.match(e.text, /failed: couldn't join Wi-Fi/);
+  e = apply(f, parseLine('{"ev":"update","ball":2,"state":"done","detail":0,"done":3,"total":3,"version":"0.5.0","rssi":-80,"snr":5}'), now);
+  assert.match(e.text, /Updated: 3 files, firmware 0.5.0/);
+  assert.equal(f.balls[2].version, '0.5.0');
 });
