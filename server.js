@@ -13,6 +13,7 @@ import { LocalVfs, LocalMedia } from './lib/vfs.js';
 import { routes, runRoute, openData } from './lib/app.js';
 import { LocalAuth, makeUser, ANONYMOUS, parseCookies, isLoopback } from './lib/auth.js';
 import { CampLink } from './lib/camp.js';
+import { checkBallKey } from './lib/ball.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -125,9 +126,35 @@ const localRoutes = [
   }],
   ['POST', '/api/camp/upload', 'admin', async (_, __, b) => campLink.upload({
     vfs: localVfs, mediaIndex: new LocalMedia(MEDIA_DIR).index(), mediaRoot: MEDIA_DIR, force: !!b.force
-  })]
+  })],
+  // ball downloads (media + firmware) straight from the laptop's media folder
+  ['GET', '/api/ball/media/:folder/:name', 'public', (c, p, __, q) => {
+    checkBallKey(c.store, q.get('key'));
+    const f = mediaPath(p.folder, p.name);
+    if (!f || !fs.existsSync(f)) throw new HttpError(404, 'No such file');
+    return { __response: { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(fs.statSync(f).size) }, body: fs.readFileSync(f) } };
+  }, { lockOk: true }]
 ];
 const table = [...localRoutes, ...routes];
+
+/** A file in the laptop's media folder, or null if the name tries to leave it. */
+function mediaPath(folder, name) {
+  const safe = (x) => /^[^/\\]+$/.test(x) && !x.startsWith('.');
+  if (!safe(folder) || !safe(name)) return null;
+  return path.join(MEDIA_DIR, folder, name);
+}
+
+const ballLinks = {
+  media: (folder, name, q) => `/api/ball/media/${encodeURIComponent(folder)}/${encodeURIComponent(name)}${q}`,
+  rev: (folder, name) => { try { const st = fs.statSync(mediaPath(folder, name)); return `${st.size}-${Math.round(st.mtimeMs)}`; } catch { return ''; } },
+  size: (folder, name) => { try { return fs.statSync(mediaPath(folder, name)).size; } catch { return undefined; } },
+  put: (folder, name, buf) => {
+    const f = mediaPath(folder, name);
+    if (!f) throw new HttpError(400, 'Bad file name');
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, buf);
+  }
+};
 
 function serveStatic(res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname === '/register' ? 'register.html' : pathname.slice(1);
@@ -144,11 +171,11 @@ const server = http.createServer(async (req, res) => {
   if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
   let body = {};
   try {
-    if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) body = await readJson(req);
+    if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) body = await readJson(req, url.pathname === '/api/ball/firmware' ? 12 : 5);
   } catch (e) {
     return send(res, e.status || 400, { error: e.message });
   }
-  const c = { ...data, user: whoIs(req), mode: 'local', req: { ip: req.socket.remoteAddress } };
+  const c = { ...data, user: whoIs(req), mode: 'local', ballLinks, req: { ip: req.socket.remoteAddress } };
   const out = await runRoute(table, c, { method: req.method, path: url.pathname, query: url.searchParams, body, ip: req.socket.remoteAddress });
   res.writeHead(out.status, { 'Cache-Control': 'no-store', ...out.headers });
   res.end(out.body);

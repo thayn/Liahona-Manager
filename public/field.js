@@ -2,7 +2,7 @@
 // Chrome or Edge). Shows every ball's last report, plots GPS positions, sends leader
 // messages and commands, and keeps a delivery log. Works fully offline.
 
-import { parseLine, buildCommand, newField, apply, describeSend, freshness, ago, signal,
+import { parseLine, buildCommand, newField, apply, describeSend, updateText, freshness, ago, signal,
          utf8Len, MSG_MAX_BYTES } from '/shared/field.js';
 import * as L from '/vendor/leaflet/leaflet-src.esm.js';
 
@@ -177,6 +177,7 @@ function build(root) {
           <button data-f="skip" title="Move past the current step">Skip</button>
           <button data-f="dim" title="Screen and LEDs to rest">Dim</button>
           <button data-f="restore" title="Undo dim">Restore</button>
+          <button data-f="update" title="Join Wi-Fi and fetch new content and firmware from the Manager (Settings → Balls over Wi-Fi)">Update</button>
           <span class="grow"></span>
           <label class="nowrap">Step <input id="f-stage" type="number" min="0" max="255" value="0" style="width:5em"></label>
           <button data-f="stage">Go</button>
@@ -193,7 +194,7 @@ function build(root) {
     <div class="panel">
       <h3>Balls</h3>
       <table class="field-table">
-        <thead><tr><th>Ball</th><th>Last heard</th><th>Battery</th><th>Lid</th><th>Step</th><th>GPS</th><th>Heading</th><th>Signal</th><th></th></tr></thead>
+        <thead><tr><th>Ball</th><th>Last heard</th><th>Battery</th><th>Lid</th><th>Step</th><th>GPS</th><th>Heading</th><th>Signal</th><th>Update</th><th></th></tr></thead>
         <tbody id="f-balls"></tbody>
       </table>
     </div>
@@ -234,6 +235,7 @@ function doSend(kind, ballOverride) {
   const extra = {};
   if (kind === 'msg') extra.text = root.querySelector('#f-msg').value;
   if (kind === 'stage') extra.stage = Number(root.querySelector('#f-stage').value);
+  if (kind === 'update' && !confirm(`Update ${to === 'all' ? 'EVERY ball' : `ball ${to}`} over Wi-Fi now? Each ball joins the network in its wifi.json, downloads what changed and may restart. Do this between activities.`)) return;
   if (to === 'all' && ['unlock', 'skip', 'stage'].includes(kind) &&
       !confirm(`${describeSend(kind, extra)} on EVERY ball?`)) return;
   send(kind, to, extra).then(ok => {
@@ -292,10 +294,11 @@ function update() {
       <td>${b?.fix ? `<span class="mono">${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}</span>` : b?.lat ? `<span class="muted">last fix ${ago(b.fixAt, now)}</span>` : '<span class="muted">no fix</span>'}</td>
       <td>${Number.isFinite(b?.heading) ? `${Math.round(b.heading)}°` : '—'}</td>
       <td title="${b ? `RSSI ${b.rssi} dBm, SNR ${b.snr} dB` : ''}"><span class="bars">${bars}</span> ${b ? sig.label : ''}</td>
+      <td class="${b?.update?.state === 'failed' ? 'bad-text' : ''}">${b?.update ? `${esc(updateText(b.update))} <span class="muted">${ago(b.update.at, now)}</span>` : b?.version ? `<span class="muted">fw ${esc(b.version)}</span>` : '—'}</td>
       <td class="nowrap"><button class="small" data-f="ping" data-ball="${n}">Ping</button></td>
     </tr>`;
   }).join('');
-  $('#f-balls').innerHTML = rows || `<tr><td colspan="9" class="muted">No balls heard yet. Balls report every 30 seconds once their radio is on. Give each team a ball number on the Teams tab to list it here.</td></tr>`;
+  $('#f-balls').innerHTML = rows || `<tr><td colspan="10" class="muted">No balls heard yet. Balls report every 30 seconds once their radio is on. Give each team a ball number on the Teams tab to list it here.</td></tr>`;
 
   // map
   drawMap($('#f-map'), $('#f-plot-note'), now);
