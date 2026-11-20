@@ -115,3 +115,22 @@ test('ball package: key, journey, roster, media and firmware', async () => {
   await call(admin, 'POST', '/api/ball/key');
   assert.equal((await call(ANONYMOUS, 'GET', `/api/ball/package?key=${key}`)).status, 401);
 });
+
+test('ball logs: upload with the key, listed for planners, snapshot replaced', async () => {
+  const { mediaDir, call } = setup();
+  const key = (await call(admin, 'POST', '/api/ball/key')).json.key;
+  assert.equal((await call(ANONYMOUS, 'POST', '/api/ball/log?key=nope&ball=1', { name: 'now.txt', text: 'x' })).status, 401);
+  const q = `?key=${encodeURIComponent(key)}&ball=3`;
+  assert.equal((await call(ANONYMOUS, 'POST', `/api/ball/log${q}`, { name: '001-brownout.txt', reason: 'brownout', text: 'I (1) boot\n' })).status, 200);
+  assert.equal((await call(ANONYMOUS, 'POST', `/api/ball/log${q}`, { name: 'now.txt', reason: 'brownout', text: 'first' })).status, 200);
+  assert.equal((await call(ANONYMOUS, 'POST', `/api/ball/log${q}`, { name: 'now.txt', reason: 'brownout', text: 'second' })).status, 200);
+  const logs = (await call(admin, 'GET', '/api/ball')).json.logs;
+  assert.equal(logs.length, 2);
+  assert.equal(logs[0].name, 'now.txt');
+  assert.equal(logs[1].crash, true);
+  assert.equal(fs.readFileSync(path.join(mediaDir, '_ball-logs', 'ball-3-now.txt'), 'utf8'), 'second');
+  const link = (await call(admin, 'GET', '/api/ball/logs/ball-3-001-brownout.txt')).json.url;
+  assert.match(link, /_ball-logs\/ball-3-001-brownout\.txt\?key=/);
+  assert.equal((await call(admin, 'GET', '/api/ball/logs/ball-9-x.txt')).status, 404);
+  assert.equal((await call(ANONYMOUS, 'GET', '/api/ball/logs/ball-3-now.txt')).status, 401);
+});
