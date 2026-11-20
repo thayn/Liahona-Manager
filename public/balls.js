@@ -58,9 +58,22 @@ export async function renderBalls(root) {
         <button class="primary" id="ball-wifi" ${ball.hasKey ? '' : 'disabled'}>Download wifi.json</button>
       </div>
       <p class="hint">The key lets a ball download your Journey and roster. Treat the file like a password. A new key locks out every wifi.json made before it.</p>` : ''}
+
+      <h4>Ball logs</h4>
+      <p class="hint">Each update sends the ball's recent log ("now"). After a crash or brownout, the ball also saves what happened just before it restarted and sends that on its next update.</p>
+      ${(ball.logs || []).length ? `<ul class="ball-logs">${ball.logs.map(l => `<li>
+        <a href="#" data-log="${esc(l.file)}">Ball ${esc(String(l.ball))} · ${l.crash ? `<strong>${esc(l.reason || 'restart')}</strong> (${esc(l.name)})` : 'now'}</a>
+        <span class="muted">${esc(new Date(l.at).toLocaleString())}, ${kb(l.size)}${!l.crash && l.reason && l.reason !== 'power on' ? `, last reset: ${esc(l.reason)}` : ''}</span>
+      </li>`).join('')}</ul>` : '<p class="muted">No logs yet. They arrive with the next update.</p>'}
     </div>`;
 
   const $ = (s) => root.querySelector(s);
+  root.querySelectorAll('[data-log]').forEach(a => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const w = window.open('', '_blank');          // open now, so pop-up blockers allow it
+    try { const r = await H.api('GET', `/api/ball/logs/${encodeURIComponent(a.dataset.log)}`); if (w) w.location = r.url; else location.href = r.url; }
+    catch (err) { if (w) w.close(); H.toast(err.message, true); }
+  }));
   $('#ball-journey').addEventListener('change', async (e) => {
     try { await H.api('PATCH', '/api/ball', { journeyId: e.target.value || null }); H.toast('The balls will get this Journey on their next update'); }
     catch (err) { H.toast(err.message, true); renderBalls(root); }
