@@ -378,7 +378,7 @@ function placesField(label, list, path) {
     }).join('')}
       <input class="mono place-add" data-place-add="${esc(path)}" list="place-keys" placeholder="add a place…" size="14" autocomplete="off">
     </div>${placeDatalist()}
-    <span class="hint">Type a place name and press Enter. New names can be set up on the Places tab.</span>
+    <span class="hint">Pick a place from the list, or type its name and press Enter. A new name can be set up on the Places tab afterwards.</span>
     <span class="fmsg" data-msg="${esc(path)}"></span></div>`;
 }
 
@@ -463,6 +463,8 @@ export function designerInput(el) {
 }
 
 export function designerChange(el) {
+  // picking a place from the list (or leaving the box) adds it, not only Enter
+  if (D.open && el.dataset.placeAdd) { addPlaceFromBox(el, false); return true; }
   if (!D.open || !el.dataset.path) return false;
   designerInput(el);
   // Selects and list text change what other parts show, so redraw.
@@ -475,17 +477,32 @@ export function designerKeydown(ev) {
   const el = ev.target;
   if (ev.key === 'Enter' && el.dataset.placeAdd) {
     ev.preventDefault();
-    const key = slugify(el.value);
-    if (!key) return true;
-    const list = getAt(D.open.data, el.dataset.placeAdd) || [];
-    if (!list.includes(key)) { list.push(key); setAt(D.open.data, el.dataset.placeAdd, list); markDirty(); }
-    redrawKeepingFocus();
-    document.querySelector(`[data-place-add="${CSS.escape(el.dataset.placeAdd)}"]`)?.focus();
+    addPlaceFromBox(el, true);
     return true;
   }
   if (ev.key === 'Enter' && el.id === 'new-journey-title') { ev.preventDefault(); newJourneyFromBox(); return true; }
   if (ev.key === 'Enter' && el.id === 'place-scan') { ev.preventDefault(); const raw = el.value; el.value = ''; if (raw.trim()) bindPlaceScan(raw); return true; }
   return false;
+}
+
+/** Add the place typed or picked in a "Places that count" box. Matches a place by its
+ *  key or its name (any case); anything else becomes a new key to set up on Places. */
+function addPlaceFromBox(el, refocus) {
+  if (!D.open) return;
+  const raw = el.value.trim();
+  if (!raw) return;
+  const path = el.dataset.placeAdd;
+  const places = H.state().places;
+  const low = raw.toLowerCase();
+  const hit = places.find(p => p.key === raw) || places.find(p => (p.name || '').trim().toLowerCase() === low) ||
+    places.find(p => p.key === slugify(raw));
+  const key = hit ? hit.key : slugify(raw);
+  if (!key) return;
+  el.value = '';
+  const list = getAt(D.open.data, path) || [];
+  if (!list.includes(key)) { list.push(key); setAt(D.open.data, path, list); markDirty(); }
+  redrawKeepingFocus();
+  if (refocus) document.querySelector(`[data-place-add="${CSS.escape(path)}"]`)?.focus();
 }
 
 async function newJourneyFromBox() {
