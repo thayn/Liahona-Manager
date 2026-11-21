@@ -456,7 +456,11 @@ export function validateJourney(j, ctx = {}) {
 
   // Media: optional check against the files on disk.
   if (ctx.mediaFiles) {
-    for (const m of referencedMedia(j)) if (!ctx.mediaFiles.has(m.file)) warn(m.path, `Media file "${m.file}" isn't in the media folder yet`);
+    for (const m of referencedMedia(j)) {
+      if (!ctx.mediaFiles.has(m.file)) warn(m.path, `Media file "${m.file}" isn't in the media folder yet`);
+      else if (m.path.endsWith('.image') && !/\.jpe?g$/i.test(m.file)) warn(m.path, `The balls show JPEG pictures only: upload "${m.file}" again (the Manager saves it as .jpg) and pick the .jpg`);
+      else if (m.path.endsWith('.audio') && !/\.(mp3|wav)$/i.test(m.file)) warn(m.path, `The balls play MP3 and WAV only: convert "${m.file}" to MP3`);
+    }
   }
 
   // Routes: each team's Stage order must use real Stage IDs.

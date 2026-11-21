@@ -261,21 +261,47 @@ export function personDialog(pid) {
 
 // ================================================================ Media (cloud)
 
+/**
+ * Pictures for the balls: shrink to fit 600 px, turn upright (phone EXIF), and
+ * save as baseline JPEG, which the ball's hardware decoder needs. Other files
+ * pass through untouched. A PNG/GIF/WebP comes back renamed to .jpg.
+ */
+const BALL_IMAGE_MAX = 600;
+async function ballImage(file) {
+  if (!/^image\/(jpeg|png|gif|webp)$/i.test(file.type) || typeof createImageBitmap !== 'function') return file;
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return file; }
+  const k = Math.min(1, BALL_IMAGE_MAX / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, h);             // transparent PNG areas become black, like the screen
+  g.drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.85));
+  if (!blob) return file;
+  const name = /\.jpe?g$/i.test(file.name) ? file.name : file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  return new File([blob], name, { type: 'image/jpeg' });
+}
+
 export async function uploadMedia(input) {
   const folder = input.dataset.folder;
   const files = [...input.files];
   input.value = '';
   if (!folder) return H.toast('Set the Journey\'s media folder name first, and save', true);
   let done = 0;
-  for (const f of files) {
+  for (const orig of files) {
     try {
+      const f = await ballImage(orig);
+      if (f !== orig && f.name !== orig.name) H.toast(`${orig.name} is saved as ${f.name} (the balls show JPEG)`);
       H.toast(`Uploading ${f.name}…`);
       const { url } = await H.api('POST', `/api/media/${encodeURIComponent(folder)}/upload-url`, { name: f.name, type: f.type });
       const res = await fetch(url, { method: 'PUT', body: f, headers: f.type ? { 'Content-Type': f.type } : {} });
       if (!res.ok) throw new Error(`upload failed (${res.status})`);
       await H.api('POST', `/api/media/${encodeURIComponent(folder)}/uploaded`, { name: f.name });
       done++;
-    } catch (e) { H.toast(`${f.name}: ${e.message}`, true); }
+    } catch (e) { H.toast(`${orig.name}: ${e.message}`, true); }
   }
   if (done) { H.toast(`Uploaded ${done} file${done > 1 ? 's' : ''}`); document.dispatchEvent(new CustomEvent('media-uploaded')); }
 }
