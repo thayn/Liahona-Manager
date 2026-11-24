@@ -134,3 +134,12 @@ test('ball logs: upload with the key, listed for planners, snapshot replaced', a
   assert.equal((await call(admin, 'GET', '/api/ball/logs/ball-9-x.txt')).status, 404);
   assert.equal((await call(ANONYMOUS, 'GET', '/api/ball/logs/ball-3-now.txt')).status, 401);
 });
+
+test('ball networks: saved by an admin and sent with the package', async () => {
+  const { call } = setup();
+  const key = (await call(admin, 'POST', '/api/ball/key')).json.key;
+  assert.equal((await call(admin, 'PUT', '/api/ball/networks', { networks: [{ ssid: 'Camp', password: 'pw' }, { ssid: '' }, { ssid: 'Phone', password: 'x' }] })).status, 200);
+  const pkg = (await call(ANONYMOUS, 'GET', `/api/ball/package?key=${encodeURIComponent(key)}&ball=1`));
+  if (pkg.status === 200) assert.deepEqual(pkg.json.networks.map(n => n.ssid), ['Camp', 'Phone']);
+  assert.equal((await call(ANONYMOUS, 'PUT', '/api/ball/networks', { networks: [] })).status, 401);
+});

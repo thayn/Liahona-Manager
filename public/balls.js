@@ -49,6 +49,10 @@ export async function renderBalls(root) {
         <label class="grow">Password <input id="ball-pass" type="password" autocomplete="new-password"></label>
       </div>
       <div class="row">
+        <label class="grow">Backup network <span class="muted">(optional, e.g. a phone hotspot)</span> <input id="ball-ssid2" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="grow">Password <input id="ball-pass2" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="row">
         <label class="grow">Manager address <input id="ball-url" value="${esc(location.origin)}" autocomplete="off" spellcheck="false"></label>
       </div>
       <p class="hint">${H.mode() === 'local' ? 'On the camp laptop, use the laptop\'s address on the camp Wi-Fi (like http://192.168.1.20:3000), not localhost.' : 'The cloud address works anywhere the network reaches the internet, including a phone hotspot.'}</p>
@@ -57,6 +61,7 @@ export async function renderBalls(root) {
         <button class="small ghost" id="ball-newkey">${ball.hasKey ? 'Make a new key' : 'Make a key'}</button>
         <button class="primary" id="ball-wifi" ${ball.hasKey ? '' : 'disabled'}>Download wifi.json</button>
       </div>
+      <p class="hint">Downloading wifi.json also sends these networks to the balls with their next update, so a closed-up ball learns a new network as long as it can still reach one it knows.</p>
       <p class="hint">The key lets a ball download your Journey and roster. Treat the file like a password. A new key locks out every wifi.json made before it.</p>` : ''}
 
       <h4>Ball logs</h4>
@@ -109,7 +114,11 @@ export async function renderBalls(root) {
     if (/localhost|127\.0\.0\.1/.test(manager)) return H.toast('Use the laptop\'s address on the Wi-Fi, not localhost; the balls can\'t reach localhost', true);
     let key;
     try { key = (await H.api('GET', '/api/ball')).key; } catch (err) { return H.toast(err.message, true); }
-    const body = JSON.stringify({ ssid, password, manager, key }, null, 2) + '\n';
+    const ssid2 = $('#ball-ssid2').value.trim(), password2 = $('#ball-pass2').value;
+    const networks = ssid2 ? [{ ssid: ssid2, password: password2 }] : undefined;
+    const body = JSON.stringify({ ssid, password, networks, manager, key }, null, 2) + '\n';
+    // also send the list to the balls with their next update (closed-up balls can't get a new wifi.json)
+    try { await H.api('PUT', '/api/ball/networks', { networks: [{ ssid, password }, ...(networks || [])] }); } catch { /* the file still works */ }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
     a.download = 'wifi.json';
